@@ -1,23 +1,33 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, {useCallback, useRef, useState} from 'react';
 import Webcam from 'react-webcam';
-import { calculateEAR } from '../utils/calculateEAR';
-import { useFaceMesh } from '../hooks/useFaceMesh';
+import {calculateEAR} from '../utils/calculateEAR';
+import {useFaceMesh} from '../hooks/useFaceMesh';
+import {useWebSocket} from '../hooks/useWebSocket';
 import CanvasOverlay from './CanvasOverlay';
 import StatusDisplay from './StatusDisplay';
 
+const EAR_THRESHOLD = 0.2;
+
 export default function DriverMonitoring() {
     const webcamRef = useRef(null);
+    const latestEAR = useRef(null);
+
     const [status, setStatus] = useState('idle');
     const [faceCount, setFaceCount] = useState(0);
     const [currentEAR, setCurrentEAR] = useState(null);
     const [landmarks, setLandmarks] = useState(null);
-    const EAR_THRESHOLD = 0.2;
+
+    const { isConnected } = useWebSocket(latestEAR);
 
     const onResults = useCallback((results) => {
         if (!results.image) return;
         const faces = results.multiFaceLandmarks || [];
         setFaceCount(faces.length);
-        setStatus(faces.length === 0 ? 'no faces detected' : `faces detected: ${faces.length}`);
+
+        setStatus(faces.length === 0
+            ? 'no faces detected'
+            : `faces detected: ${faces.length} | WS: ${isConnected ? 'Connected' : 'Connecting...'}`
+        );
 
         if (faces.length > 0) {
             const landmarks = faces[0];
@@ -32,7 +42,10 @@ export default function DriverMonitoring() {
             const leftEAR = calculateEAR(leftEye);
             const rightEAR = calculateEAR(rightEye);
             const avgEAR = (leftEAR + rightEAR) / 2;
-            setCurrentEAR(Number(avgEAR.toFixed(3)));
+            const currentEAR = Number(avgEAR.toFixed(3));
+
+            setCurrentEAR(currentEAR);
+            latestEAR.current = currentEAR;
 
             if (avgEAR < EAR_THRESHOLD) {
                 console.log('Eyes closed! EAR=', avgEAR);
@@ -40,8 +53,9 @@ export default function DriverMonitoring() {
         } else {
             setLandmarks(null);
             setCurrentEAR(null);
+            latestEAR.current = null;
         }
-    }, []);
+    }, [isConnected]);
 
     const { startFaceMesh, isLoading } = useFaceMesh(webcamRef, onResults);
 
