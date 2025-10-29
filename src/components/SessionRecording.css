@@ -1,0 +1,74 @@
+.recording-button-container {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.timer-display {
+    font-size: 2.5rem; /* text-4xl */
+    font-family: monospace;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+    width: 100%;
+    max-width: 20rem; /* max-w-xs */
+    text-align: center;
+}
+
+.timer-display.active {
+    color: #dc2626; /* text-red-600 */
+    background-color: #fef2f2; /* bg-red-50 */
+}
+
+/* Base button styles */
+button {
+    color: white;
+    font-weight: 800;
+    font-size: 1.125rem; /* text-lg */
+    text-transform: uppercase;
+    padding: 0.75rem 2rem;
+    border-radius: 0.75rem; /* rounded-xl */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+    transition: all 0.2s ease-in-out;
+    width: 100%;
+    max-width: 20rem;
+    border: 4px solid; /* ring-4 */
+}
+
+/* Start Button */
+.recording-start-btn {
+    background-color: #22c55e; /* bg-green-500 */
+    border-color: #bbf7d0; /* ring-green-300 */
+}
+.recording-start-btn:hover {
+    background-color: #16a34a; /* hover:bg-green-600 */
+}
+
+/* Stop Button */
+.recording-stop-btn {
+    background-color: #dc2626; /* bg-red-600 */
+    border-color: #fecaca; /* ring-red-300 */
+}
+.recording-stop-btn:hover {
+    background-color: #b91c1c; /* hover:bg-red-700 */
+}
+
+/* Disabled state */
+.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Layout for the overall app to align the buttons */
+.app-container {
+    display: flex;
+    flex-direction: row; /* Puts buttons side-by-side */
+    justify-content: center;
+    gap: 2rem; /* space-x-8 */
+    max-width: 64rem;
+    margin: 0 auto;
+}
