@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useContext} from "react";
+import React, {useEffect, useState, useContext, createContext} from "react";
 import './SessionRecording.css'
 
 const formatTime = (totalSeconds) => {
@@ -11,13 +11,13 @@ const formatTime = (totalSeconds) => {
     return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 };
 
-const RecordingContext = React.createContext({
+const RecordingContext = createContext({
     isRecording: false,
     elapsedTime: 0,
     toggleRecording: () => {},
     isTakingBreak: false,
     breakTime: 0,
-    toggleBreak: () => {},
+    toggleBreak: () => {}
 });
 
 const RecordingProvider = ({ children }) => {
@@ -31,7 +31,7 @@ const RecordingProvider = ({ children }) => {
 
     // 1. Driving Timer Logic (MODIFIED)
     useEffect(() => {
-        let interval;
+        let interval = null;
         // Driving timer runs only if recording is active AND NOT on break
         if (isRecording && !isTakingBreak) {
             interval = setInterval(() => {
@@ -45,7 +45,7 @@ const RecordingProvider = ({ children }) => {
 
     // 2. Break Timer Logic (NEW)
     useEffect(() => {
-        let interval;
+        let interval = null;
         if (isTakingBreak) {
             interval = setInterval(() => {
                 setBreakTime(prevTime => prevTime + 1);
@@ -101,9 +101,9 @@ const RecordingProvider = ({ children }) => {
     };
 
     return (
-        <RecordingContext.Provider value={contextValue}>
+        <RecordingContext value={contextValue}>
             {children}
-        </RecordingContext.Provider>
+        </RecordingContext>
     );
 };
 
@@ -116,24 +116,14 @@ const RecordingButton = () => {
     const buttonClass = isRecording ? "recording-stop-btn" : "recording-start-btn";
 
     return (
-        <div className="p-4 flex flex-col items-center justify-center">
+        <div>
 
             {/* Timer Display */}
             <div className={`
-        text-4xl 
-        font-mono 
-        font-bold 
-        mb-4 
-        py-2 
-        px-4 
-        rounded 
-        shadow-inner 
-        w-full 
-        max-w-xs 
-        text-center
-        ${isRecording ? 'text-red-600 bg-red-50' : 'text-gray-700 bg-gray-200'}
-        ${isDisabled ? 'opacity-70' : ''}
-      `}>
+                timer-display 
+                ${isTakingBreak ? 'break-active-display' : 'break-inactive-display'}
+                ${isDisabled ? 'disabled-display' : ''}
+            `}>
                 {formatTime(elapsedTime)}
             </div>
 
@@ -142,40 +132,37 @@ const RecordingButton = () => {
                 disabled={isDisabled}
                 className={`${buttonClass} ${isDisabled ? 'disabled' : ''}`}
             >
-                {isRecording ? "Stop Recording" : "Start Recording"}
+                {isRecording ? "Stop Driving" : "Start Driving"}
             </button>
+            <p className={`status-text ${isTakingBreak ? 'status-break' : 'status-ready'}`}>
+                Status: {isTakingBreak ? "Break Active (Driving Paused)" : (isRecording ? "Ready for Break" : "Recording Required")}
+            </p>
         </div>
     );
 };
 
 
 const BreakButton = () => {
+    // Context is correctly used
     const { isRecording, isTakingBreak, breakTime, toggleBreak } = useContext(RecordingContext);
 
+    // Use descriptive CSS classes
     const buttonClass = isTakingBreak
-        ? "bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800"
-        : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700";
+        ? "break-end-btn" // Custom CSS class for ending break (Yellow)
+        : "break-take-btn"; // Custom CSS class for taking break (Blue)
 
     const isDisabled = !isRecording;
 
     return (
-        <div className="p-4 flex flex-col items-center justify-center">
+        // Use a container class for styling the section
+        <div className="button-container">
 
             {/* Break Timer Display */}
             <div className={`
-                text-4xl 
-                font-mono 
-                font-bold 
-                mb-4 
-                py-2 
-                px-4 
-                rounded 
-                shadow-inner 
-                w-full 
-                max-w-xs 
-                text-center
-                ${isTakingBreak ? 'text-yellow-600 bg-yellow-50' : 'text-gray-700 bg-gray-200'}
-                ${isDisabled ? 'opacity-70' : ''}
+                timer-display 
+                break-timer-display
+                ${isTakingBreak ? 'break-active' : 'break-inactive'}
+                ${isDisabled ? 'disabled-display' : ''}
             `}>
                 {formatTime(breakTime)}
             </div>
@@ -183,29 +170,14 @@ const BreakButton = () => {
             <button
                 onClick={toggleBreak}
                 disabled={isDisabled}
-                className={`
-                    ${buttonClass} 
-                    text-white 
-                    font-extrabold 
-                    text-lg 
-                    uppercase 
-                    py-3 
-                    px-8 
-                    rounded-xl 
-                    shadow-lg 
-                    transition 
-                    duration-200 
-                    ease-in-out
-                    w-full 
-                    max-w-xs
-                    ring-4
-                    ${isTakingBreak ? 'ring-yellow-300' : 'ring-blue-300'}
-                    ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
-                `}
+                // Apply descriptive classes
+                className={`${buttonClass} ${isDisabled ? 'disabled' : ''}`}
             >
                 {isTakingBreak ? "End Break" : "Take Break"}
             </button>
-            <p className={`mt-2 text-sm font-medium ${isTakingBreak ? 'text-yellow-600' : 'text-blue-600'}`}>
+
+            {/* Status text */}
+            <p className={`status-text ${isTakingBreak ? 'status-break' : 'status-ready'}`}>
                 Status: {isTakingBreak ? "Break Active (Driving Paused)" : (isRecording ? "Ready for Break" : "Recording Required")}
             </p>
         </div>
@@ -217,20 +189,29 @@ const RecordingIndicator = () => {
     const { isRecording, isTakingBreak, elapsedTime, breakTime } = useContext(RecordingContext);
 
     if (!isRecording) {
-        return <div className="text-center text-gray-500 mt-4">No active session.</div>;
+        // Updated text styling to use a simple CSS class for centering/color
+        return <div className="indicator-standby">No active session.</div>;
     }
 
+    // Determine the main indicator background/border class
+    const indicatorClass = isTakingBreak ? 'indicator-break-session' : 'indicator-active-session';
+
+    // Determine the pulsing dot color class
+    const dotClass = isTakingBreak ? 'dot-break' : 'dot-active';
+
     return (
-        <div className={`text-center mt-4 p-3 rounded-lg border-4 ${isTakingBreak ? 'bg-yellow-100 border-yellow-500' : 'bg-red-100 border-red-500'}`}>
-            <div className="flex items-center justify-center space-x-2">
-                <span className={`h-3 w-3 rounded-full animate-pulse ${isTakingBreak ? 'bg-yellow-600' : 'bg-red-600'}`}></span>
-                <span className="font-semibold text-gray-700">
+        // Use base class plus the status class
+        <div className={`indicator-base ${indicatorClass}`}>
+            <div className="indicator-header">
+                {/* Status Dot */}
+                <span className={`indicator-dot animate-pulse ${dotClass}`}></span>
+                <span className="indicator-title">
                     {isTakingBreak ? "SESSION PAUSED (BREAK)" : "LIVE DRIVING SESSION"}
                 </span>
             </div>
-            <p className="text-sm text-gray-600 mt-1">
-                Driving Time: <span className="font-mono font-bold">{formatTime(elapsedTime)}</span> |
-                Break Time: <span className="font-mono font-bold">{formatTime(breakTime)}</span>
+            <p className="indicator-details">
+                Driving Time: <span className="time-value">{formatTime(elapsedTime)}</span> |
+                Break Time: <span className="time-value">{formatTime(breakTime)}</span>
             </p>
         </div>
     );

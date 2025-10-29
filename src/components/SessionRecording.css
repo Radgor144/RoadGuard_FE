@@ -30,7 +30,8 @@ button {
     font-weight: 800;
     font-size: 1.125rem; /* text-lg */
     text-transform: uppercase;
-    padding: 0.75rem 2rem;
+    padding-top: 0.75rem; /* py-3 */
+    padding-bottom: 0.75rem;
     border-radius: 0.75rem; /* rounded-xl */
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
     transition: all 0.2s ease-in-out;
@@ -71,4 +72,152 @@ button {
     gap: 2rem; /* space-x-8 */
     max-width: 64rem;
     margin: 0 auto;
+}
+
+/* Timer Color for Active Break (Yellow) */
+.break-timer-display.break-active {
+    color: #b45309; /* Darker Yellow/Orange text */
+    background-color: #fffbeb; /* Light Yellow background */
+}
+
+/* Timer Color for Inactive Break (Gray) */
+.break-timer-display.break-inactive {
+    color: #4b5563; /* Gray text */
+    background-color: #e5e7eb; /* Light Gray background */
+}
+
+/* Take Break Button (Blue) */
+.break-take-btn {
+    background-color: #3b82f6; /* Blue */
+    border-color: #bfdbfe; /* Light Blue Ring */
+}
+.break-take-btn:hover {
+    background-color: #2563eb; /* Darker Blue */
+}
+
+/* End Break Button (Yellow/Orange) */
+.break-end-btn {
+    background-color: #f59e0b; /* Yellow/Orange */
+    border-color: #fde68a; /* Light Yellow Ring */
+}
+.break-end-btn:hover {
+    background-color: #d97706; /* Darker Yellow/Orange */
+}
+
+/* Status Text Colors */
+.status-break {
+    color: #b45309; /* Yellow/Orange text */
+}
+
+.status-ready {
+    color: #1d4ed8; /* Blue text */
+}
+
+.indicator-standby {
+    text-align: center;
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    border-width: 4px;
+    border-style: solid;
+    width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+    vertical-align: center;
+}
+
+.indicator-base {
+    text-align: center;
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    border-width: 4px;
+    border-style: solid;
+    width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+    vertical-align: center;
+}
+
+.indicator-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem; /* space-x-2 */
+}
+
+.indicator-title {
+    font-weight: 600; /* font-semibold */
+    color: #4b5563; /* Gray-700 */
+}
+
+.indicator-dot {
+    height: 0.75rem; /* h-3 */
+    width: 0.75rem; /* w-3 */
+    border-radius: 9999px; /* rounded-full */
+}
+
+.indicator-details {
+    font-size: 0.875rem; /* text-sm */
+    color: #4b5563; /* Gray-600 */
+    margin-top: 0.25rem;
+}
+
+.time-value {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+}
+
+/* --- Status-Specific Indicator Colors --- */
+
+/* LIVE DRIVING SESSION (Red) */
+.indicator-active-session {
+    background-color: #fee2e2; /* Red-100 */
+    border-color: #ef4444; /* Red-500 */
+}
+.dot-active {
+    background-color: #dc2626; /* Red-600 */
+}
+
+/* SESSION PAUSED (BREAK) (Yellow) */
+.indicator-break-session {
+    background-color: #fffbeb; /* Yellow-100 */
+    border-color: #f59e0b; /* Yellow-500 */
+}
+.dot-break {
+    background-color: #d97706; /* Yellow-700 */
+}
+
+/* Animation for dot */
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.main-header {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #1f2937; /* Dark text */
+    margin-bottom: 30px;
+}
+
+.buttons-row-layout {
+    display: flex;
+    flex-direction: column; /* Default: stack vertically on small screens */
+    align-items: center;
+    gap: 30px; /* Vertical space between buttons on mobile */
+    padding: 20px 0;
+}
+
+/* Media Query: Switch to horizontal layout on larger screens (e.g., 600px wide) */
+@media (min-width: 600px) {
+    .buttons-row-layout {
+        flex-direction: row; /* Change to side-by-side */
+        justify-content: center; /* Center the two buttons */
+        gap: 40px; /* Horizontal space between buttons */
+    }
 }
