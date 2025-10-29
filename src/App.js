@@ -2,6 +2,10 @@ import './App.css';
 import DriverMonitoring from "./mediapipe/components/DriverMonitoring";
 import {GaugeComponent} from "react-gauge-component";
 import React from "react";
+import {RecordingButton} from "./components/SessionRecording";
+import {BreakButton} from "./components/SessionRecording";
+import {RecordingIndicator} from "./components/SessionRecording";
+import {RecordingProvider} from "./components/SessionRecording";
 
 function App() {
     return (
@@ -9,40 +13,97 @@ function App() {
             <div className="camera">
                 <DriverMonitoring/>
             </div>
-            <div className="gauge" style={{marginTop: '20px'}}>
-                <GaugeComponent
-                    id="gauge-component2"
-                    value={80}
-                    pointer={{type: "arrow", elastic: true}}
-                    range={{min: 0, max: 100}}
-                    width={300}
-                    height={200}
-                    arc={{
-                        width: 0.3,
-                        subArcs: [
-                            {
-                                limit: 50,
-                                color: '#00FF00',
-                                showTick: true
-                            },
-                            {
-                                limit: 75,
-                                color: '#FFFF00',
-                                showTick: true
-                            },
-                            {
-                                limit: 100,
-                                color: '#FF0000'
-                            }
-                        ]
-                    }}
-                    // Remove the deprecated/incorrect properties for this configuration
-                    // segments={10}
-                    // arcWidth={0.3}
-                    // colors={['#FF0000', '#FFFF00', '#00FF00']}
-                    needleColor={"#000000"}
-                    textColor={"#000000"}
-                />
+            <div className="gauge-layout" style={{display: 'flex', flexDirection: 'row', alignItems: 'center'}}>
+                <div className="gauge-container" style={{marginTop: '20px'}}>
+                    <GaugeComponent
+                        type="semicircle"
+                        arc={{
+                            width: 0.2,
+                            padding: 0.005,
+                            cornerRadius: 1,
+                            // gradient: true,
+                            subArcs: [
+                                {
+                                    limit: 50,
+                                    color: '#5BE12C',
+                                    showTick: true,
+                                    tooltip: {
+                                        text: 'You\'re okay!'
+                                    }
+                                },
+                                {
+                                    limit: 75, color: '#F5CD19', showTick: true,
+                                    tooltip: {
+                                        text: 'You\'re getting tired!'
+                                    }
+                                },
+                                {
+                                    color: '#EA4228',
+                                    tooltip: {
+                                        text: 'You\'re almost sleeping!'
+                                    }
+                                }
+                            ]
+                        }}
+                        pointer={{
+                            color: '#141d1a',
+                            length: 0.80,
+                            width: 15,
+                            // elastic: true,
+                        }}
+                        value={40}
+                        minValue={0}
+                        maxValue={100}
+                    />
+                </div>
+                <div className="gauge-container" style={{marginTop: '20px'}}>
+                    <GaugeComponent
+                        id="gauge-component3"
+                        value={20}
+                        pointer={{type: "arrow", elastic: true, width: 8, length: 70, color: "#000000", hide: false}}
+                        range={{min: 0, max: 100}}
+                        width={50}
+                        height={50}
+                        arc={{
+                            width: 0.3,
+                            subArcs: [
+                                {
+                                    limit: 50,
+                                    color: '#00FF00',
+                                    showTick: true
+                                },
+                                {
+                                    limit: 75,
+                                    color: '#FFFF00',
+                                    showTick: true
+                                },
+                                {
+                                    limit: 100,
+                                    color: '#FF0000'
+                                }
+                            ]
+                        }}
+                        needleColor={"#000000"}
+                        textColor={"#000000"}
+                    />
+                </div>
+            </div>
+            <div>
+                <RecordingProvider>
+                    {/* The outermost container for global styling/centering */}
+                    <div className="app-container">
+
+                        <h1 className="main-header">Driver Timer App</h1>
+
+                        {/* 🎯 THIS IS THE FLEX CONTAINER FOR SIDE-BY-SIDE LAYOUT */}
+                        <div className="buttons-row-layout">
+                            <RecordingButton />
+                            <BreakButton />
+                        </div>
+
+                        <RecordingIndicator />
+                    </div>
+                </RecordingProvider>
             </div>
         </div>
     );
