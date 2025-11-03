@@ -1,8 +1,7 @@
 import {useEffect, useState} from 'react';
-import SockJS from 'sockjs-client';
 import {Client} from '@stomp/stompjs';
 
-const WS_URL_HTTP = 'http://localhost:8082/driver-monitor';
+const WS_URL = 'ws://localhost:8082/driver-monitor';
 const SEND_INTERVAL_MS = 100;
 
 export const useWebSocket = (latestEARRef) => {
@@ -10,10 +9,9 @@ export const useWebSocket = (latestEARRef) => {
 
     useEffect(() => {
         const client = new Client({
-            brokerURL: WS_URL_HTTP,
-            webSocketFactory: () => new SockJS(WS_URL_HTTP),
+            brokerURL: WS_URL,
+
             onConnect: () => {
-                console.log('STOMP/SockJS connected!');
                 setStompClient(client);
 
                 client.subscribe('/topic/ear-updates', (message) => {
@@ -22,12 +20,11 @@ export const useWebSocket = (latestEARRef) => {
             },
             onStompError: (frame) => {
                 console.error('Broker reported error: ' + frame.headers['message']);
-                console.error('Additional details: ' + frame.body);
             },
             onDisconnect: () => {
-                console.log('STOMP disconnected');
                 setStompClient(null);
-            }
+            },
+            reconnectDelay: 5000,
         });
 
         client.activate();
@@ -43,13 +40,15 @@ export const useWebSocket = (latestEARRef) => {
         const interval = setInterval(() => {
             if (stompClient && stompClient.connected && latestEARRef.current !== null) {
                 const message = {
+                    driverId: "testing_driver",
                     ear: latestEARRef.current,
                     timestamp: Date.now()
                 };
 
                 stompClient.publish({
                     destination: '/app/ear-data',
-                    body: JSON.stringify(message)
+                    body: JSON.stringify(message),
+                    headers: {'content-type': 'application/json'},
                 });
             }
         }, SEND_INTERVAL_MS);
@@ -57,5 +56,5 @@ export const useWebSocket = (latestEARRef) => {
         return () => clearInterval(interval);
     }, [stompClient, latestEARRef]);
 
-    return { isConnected: !!stompClient && stompClient.connected };
+    return {isConnected: !!stompClient && stompClient.connected};
 };
