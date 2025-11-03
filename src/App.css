@@ -36,3 +36,10 @@
     transform: rotate(360deg);
   }
 }
+
+.gauge-container {
+    width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 10px;
+}
