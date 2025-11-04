@@ -41,7 +41,8 @@ header
 }
 
 
-nav {
+nav
+{
     display: flex;
     justify-content: center;
     align-items: center;
@@ -60,12 +61,13 @@ nav ul {
     flex-wrap: wrap;
 }
 
-nav li {
+nav li
+{
     flex: 0 0 auto;
 }
 
-/* 🟢 Kolor domyślny przycisku */
-nav a {
+nav a
+{
     display: inline-block;
     padding: 12px 24px;
     text-decoration: none;
@@ -77,51 +79,56 @@ nav a {
     transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
-/* 🟢 Efekt hover */
 nav a:hover,
-nav a:focus {
+nav a:focus
+{
     transform: translateY(-3px);
     box-shadow: 0 10px 22px rgba(27, 136, 94, 0.25);
     outline: 3px solid rgba(27, 136, 94, 0.12);
     outline-offset: 4px;
 }
 
-/* 🔴 Kolor aktywnego przycisku */
-nav a.active {
+nav a.active
+{
     background: #CA1223;
     box-shadow: 0 6px 16px rgba(202, 18, 35, 0.25);
 }
 
-/* 📱 Na małych ekranach układ pionowy */
-@media (max-width: 600px) {
-    nav ul {
+@media (max-width: 600px) 
+{
+    nav ul
+    {
         flex-direction: column;
         align-items: center;
         gap: 12px;
     }
 
-    nav a {
+    nav a
+    {
         width: 100%;
         text-align: center;
     }
 }
 
-.App {
+.App
+{
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start; /* 🔧 zamiast center */
+    justify-content: flex-start;
     min-height: 100vh;
 }
 
-main {
+main
+{
     width: 100%;
     display: flex;
     justify-content: center;
-    margin-top: 20px; /* 🔧 dodajemy trochę przestrzeni pod menu */
+    margin-top: 20px;
 }
 
-.roadguard-wrapper {
+.roadguard-wrapper
+{
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -132,13 +139,15 @@ main {
     gap: 40px;
 }
 
-.camera {
+.camera
+{
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-.gauge {
+.gauge
+{
     display: flex;
     justify-content: center;
     align-items: center;
