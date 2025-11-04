@@ -1,11 +1,9 @@
 import './App.css';
-import DriverMonitoring from "./mediapipe/components/DriverMonitoring";
-import { GaugeComponent } from "react-gauge-component";
 import React from "react";
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import About from "./pages/About";
-import RoadGuard from "./pages/RoadGuard";
 import Stats from "./pages/Stats";
+import LiveFeed from "./components/LiveFeed";
 
 function App() {
     return (
@@ -39,7 +37,7 @@ function App() {
                         <Route path="/about" element={<About />} />
                         <Route
                             path="/roadguard"
-                            element={
+                            /* element={
                                 <div className="roadguard-wrapper">
                                     <div className="camera">
                                         <DriverMonitoring />
@@ -58,7 +56,8 @@ function App() {
 
                                     <RoadGuard />
                                 </div>
-                            }
+                            } */
+                            element={<LiveFeed />}
                         />
                         <Route path="/stats" element={<Stats />} />
                     </Routes>

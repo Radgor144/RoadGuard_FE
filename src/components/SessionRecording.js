@@ -17,7 +17,8 @@ const RecordingContext = createContext({
     toggleRecording: () => {},
     isTakingBreak: false,
     breakTime: 0,
-    toggleBreak: () => {}
+    toggleBreak: () => {},
+    timeSinceLastBreak: 0,
 });
 
 const RecordingProvider = ({ children }) => {
@@ -29,6 +30,11 @@ const RecordingProvider = ({ children }) => {
     const [isTakingBreak, setIsTakingBreak] = useState(false); // NEW
     const [breakTime, setBreakTime] = useState(0);              // NEW
 
+    // NEW STATE: Tracks the timestamp when the last break ended (not used directly for display, but for logic)
+    const [lastBreakEndTime, setLastBreakEndTime] = useState(0);
+    // NEW STATE: Tracks the calculated time since that timestamp (in seconds, used for display)
+    const [timeSinceLastBreak, setTimeSinceLastBreak] = useState(0);
+
     // 1. Driving Timer Logic (MODIFIED)
     useEffect(() => {
         let interval = null;
@@ -36,12 +42,17 @@ const RecordingProvider = ({ children }) => {
         if (isRecording && !isTakingBreak) {
             interval = setInterval(() => {
                 setElapsedTime(prevTime => prevTime + 1);
+
+                // Increment time since last break if a break has been taken (i.e., lastBreakEndTime > 0)
+                if (lastBreakEndTime > 0) {
+                    setTimeSinceLastBreak(prevTime => prevTime + 1);
+                }
             }, 1000);
         } else {
             clearInterval(interval);
         }
         return () => clearInterval(interval);
-    }, [isRecording, isTakingBreak]); // DEPENDENCY ADDED
+    }, [isRecording, isTakingBreak, lastBreakEndTime]); // DEPENDENCY ADDED
 
     // 2. Break Timer Logic (NEW)
     useEffect(() => {
@@ -81,12 +92,21 @@ const RecordingProvider = ({ children }) => {
         if (isTakingBreak) {
             // Ending break
             setIsTakingBreak(false);
+
+            // NEW: Record the time the break ended and reset the timeSinceLastBreak counter
+            setLastBreakEndTime(Date.now());
+            setTimeSinceLastBreak(0); // TimeSinceLastBreak will start ticking up in the driving effect
+
             // breakTime is intentionally NOT reset here, so it shows the last break duration
             console.log("Break ended. Resuming recording.");
         } else {
             // Starting break: reset break time for the new break session
             setBreakTime(0);
             setIsTakingBreak(true);
+
+            // NEW: Clear last break end time while a break is active
+            setLastBreakEndTime(0);
+
             console.log("Break started. Driving timer paused.");
         }
     };
@@ -95,9 +115,10 @@ const RecordingProvider = ({ children }) => {
         isRecording,
         elapsedTime,
         toggleRecording,
-        isTakingBreak, // NEW
-        breakTime,     // NEW
-        toggleBreak,   // NEW
+        isTakingBreak,
+        breakTime,
+        timeSinceLastBreak,
+        toggleBreak,
     };
 
     return (
@@ -134,9 +155,6 @@ const RecordingButton = () => {
             >
                 {isRecording ? "Stop Driving" : "Start Driving"}
             </button>
-            <p className={`status-text ${isTakingBreak ? 'status-break' : 'status-ready'}`}>
-                Status: {isTakingBreak ? "Break Active (Driving Paused)" : (isRecording ? "Ready for Break" : "Recording Required")}
-            </p>
         </div>
     );
 };
@@ -175,11 +193,6 @@ const BreakButton = () => {
             >
                 {isTakingBreak ? "End Break" : "Take Break"}
             </button>
-
-            {/* Status text */}
-            <p className={`status-text ${isTakingBreak ? 'status-break' : 'status-ready'}`}>
-                Status: {isTakingBreak ? "Break Active (Driving Paused)" : (isRecording ? "Ready for Break" : "Recording Required")}
-            </p>
         </div>
     );
 };
@@ -222,5 +235,6 @@ export {
     RecordingProvider,
     RecordingButton,
     BreakButton,
-    RecordingIndicator
+    RecordingIndicator,
+    formatTime
 };

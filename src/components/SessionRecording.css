@@ -15,7 +15,6 @@
     border-radius: 0.25rem;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
     width: 100%;
-    max-width: 20rem; /* max-w-xs */
     text-align: center;
 }
 
@@ -36,7 +35,6 @@ button {
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
     transition: all 0.2s ease-in-out;
     width: 100%;
-    max-width: 20rem;
     border: 4px solid; /* ring-4 */
 }
 
@@ -70,7 +68,6 @@ button {
     flex-direction: row; /* Puts buttons side-by-side */
     justify-content: center;
     gap: 2rem; /* space-x-8 */
-    max-width: 64rem;
     margin: 0 auto;
 }
 
