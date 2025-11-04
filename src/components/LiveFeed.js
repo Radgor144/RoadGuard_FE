@@ -108,7 +108,7 @@ export const LiveFeed = () => {
 
     return (
         <RecordingProvider>
-            <div className="bg-gray-900 text-white p-4 sm:p-8 flex items-center justify-center font-sans">
+            <div className="transparent text-white p-4 sm:p-8 flex items-center justify-center font-sans">
                 <div className="bg-gray-800 rounded-3xl shadow-2xl w-full max-w-*">
 
                     {/* Main Content Grid */}
