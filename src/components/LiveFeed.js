@@ -52,14 +52,6 @@ export const LiveFeed = () => {
                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
                                 <div
                                     className="bg-gray-900 rounded-xl shadow-lg flex flex-col items-center justify-center p-4 pt-8 md:col-span-1">
-                                    <div style={{
-                                        position: 'relative',
-                                        width: '100%',
-                                        height: 220,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}>
                                         <GaugeComponent
                                             value={fatigueLevel}
                                             type="radial"
@@ -82,7 +74,6 @@ export const LiveFeed = () => {
                                             className="w-full h-90"
                                             marginInPercent={{top: 0.02, right: 0.02, bottom: 0.02, left: 0.02}}
                                         />
-                                    </div>
                                 </div>
 
                                 <div className="md:col-span-1 flex flex-col justify-between gap-6">
