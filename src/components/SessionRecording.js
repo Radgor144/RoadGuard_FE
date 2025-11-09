@@ -5,10 +5,15 @@ const formatTime = (totalSeconds) => {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-
     const pad = (num) => String(num).padStart(2, '0');
-
     return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+};
+
+const formatClock = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    const d = new Date(timestamp);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
 const RecordingContext = createContext({
@@ -16,45 +21,37 @@ const RecordingContext = createContext({
     elapsedTime: 0,
     toggleRecording: () => {},
     isTakingBreak: false,
+    startTime: 0,
     breakTime: 0,
     toggleBreak: () => {},
     timeSinceLastBreak: 0,
 });
 
 const RecordingProvider = ({ children }) => {
-    // DRIVING STATE
     const [isRecording, setIsRecording] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0); // Driving time in seconds
 
-    // BREAK STATE
-    const [isTakingBreak, setIsTakingBreak] = useState(false); // NEW
-    const [breakTime, setBreakTime] = useState(0);              // NEW
+    const [isTakingBreak, setIsTakingBreak] = useState(false);
+    const [startTime, setStartTime] = useState(0);
+    const [breakTime, setBreakTime] = useState(0);
 
-    // NEW STATE: Tracks the timestamp when the last break ended (not used directly for display, but for logic)
     const [lastBreakEndTime, setLastBreakEndTime] = useState(0);
-    // NEW STATE: Tracks the calculated time since that timestamp (in seconds, used for display)
     const [timeSinceLastBreak, setTimeSinceLastBreak] = useState(0);
 
-    // 1. Driving Timer Logic (MODIFIED)
+    // Driving timer
     useEffect(() => {
         let interval = null;
-        // Driving timer runs only if recording is active AND NOT on break
         if (isRecording && !isTakingBreak) {
             interval = setInterval(() => {
                 setElapsedTime(prevTime => prevTime + 1);
-
-                // Increment time since last break if a break has been taken (i.e., lastBreakEndTime > 0)
-                if (lastBreakEndTime > 0) {
-                    setTimeSinceLastBreak(prevTime => prevTime + 1);
-                }
             }, 1000);
         } else {
             clearInterval(interval);
         }
         return () => clearInterval(interval);
-    }, [isRecording, isTakingBreak, lastBreakEndTime]); // DEPENDENCY ADDED
+    }, [isRecording, isTakingBreak]);
 
-    // 2. Break Timer Logic (NEW)
+    // Break timer
     useEffect(() => {
         let interval = null;
         if (isTakingBreak) {
@@ -67,22 +64,42 @@ const RecordingProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, [isTakingBreak]);
 
+    // Aktualizuje timeSinceLastBreak na podstawie lastBreakEndTime
+    useEffect(() => {
+        let interval = null;
+        if (lastBreakEndTime > 0) {
+            const update = () => {
+                setTimeSinceLastBreak(Math.floor((Date.now() - lastBreakEndTime) / 1000));
+            };
+            update();
+            interval = setInterval(update, 1000);
+        } else {
+            setTimeSinceLastBreak(0);
+        }
+        return () => clearInterval(interval);
+    }, [lastBreakEndTime]);
+
     const toggleRecording = () => {
         if (isRecording) {
-            // Stopping recording
+            // Stop recording: clear break and reset related timers/state (including last break info)
             setIsRecording(false);
-            // Ensure break stops and resets if recording stops
             if (isTakingBreak) setIsTakingBreak(false);
             setBreakTime(0);
+            setStartTime(0);
+
+            // Reset last break info when driving session ends
+            setLastBreakEndTime(0);
+            setTimeSinceLastBreak(0);
         } else {
-            // Starting recording: reset time and start
+            // Start recording: reset elapsed and set start timestamp
             setElapsedTime(0);
             setIsRecording(true);
+            setStartTime(Date.now());
+            // keep lastBreakEndTime/timeSinceLastBreak as-is (they reflect previous session) or clear if desired
         }
         console.log(isRecording ? "Stopping Recording..." : "Starting Recording...");
     };
 
-    // NEW toggleBreak function
     const toggleBreak = () => {
         if (!isRecording) {
             console.log("Cannot start break: Recording is not active.");
@@ -92,21 +109,14 @@ const RecordingProvider = ({ children }) => {
         if (isTakingBreak) {
             // Ending break
             setIsTakingBreak(false);
-
-            // NEW: Record the time the break ended and reset the timeSinceLastBreak counter
             setLastBreakEndTime(Date.now());
-            setTimeSinceLastBreak(0); // TimeSinceLastBreak will start ticking up in the driving effect
-
-            // breakTime is intentionally NOT reset here, so it shows the last break duration
+            // timeSinceLastBreak starts updating from effect above
             console.log("Break ended. Resuming recording.");
         } else {
-            // Starting break: reset break time for the new break session
+            // Starting break
             setBreakTime(0);
             setIsTakingBreak(true);
-
-            // NEW: Clear last break end time while a break is active
-            setLastBreakEndTime(0);
-
+            setLastBreakEndTime(0); // clear previous last-break timestamp while on break
             console.log("Break started. Driving timer paused.");
         }
     };
@@ -119,32 +129,25 @@ const RecordingProvider = ({ children }) => {
         breakTime,
         timeSinceLastBreak,
         toggleBreak,
+        startTime,
+        lastBreakEndTime
     };
 
     return (
-        <RecordingContext value={contextValue}>
+        <RecordingContext.Provider value={contextValue}>
             {children}
-        </RecordingContext>
+        </RecordingContext.Provider>
     );
 };
 
 const RecordingButton = () => {
     const { isRecording, elapsedTime, toggleRecording, isTakingBreak } = useContext(RecordingContext);
-
-    // Disable if a break is currently active
     const isDisabled = isTakingBreak;
-
     const buttonClass = isRecording ? "recording-stop-btn" : "recording-start-btn";
 
     return (
         <div>
-
-            {/* Timer Display */}
-            <div className={`
-                timer-display 
-                ${isTakingBreak ? 'break-active-display' : 'break-inactive-display'}
-                ${isDisabled ? 'disabled-display' : ''}
-            `}>
+            <div className={`timer-display ${isTakingBreak ? 'onBreak' : (isRecording ? 'active' : 'inactive')}`}>
                 {formatTime(elapsedTime)}
             </div>
 
@@ -161,26 +164,16 @@ const RecordingButton = () => {
 
 
 const BreakButton = () => {
-    // Context is correctly used
     const { isRecording, isTakingBreak, breakTime, toggleBreak } = useContext(RecordingContext);
-
-    // Use descriptive CSS classes
-    const buttonClass = isTakingBreak
-        ? "break-end-btn" // Custom CSS class for ending break (Yellow)
-        : "break-take-btn"; // Custom CSS class for taking break (Blue)
-
+    const buttonClass = isTakingBreak ? "break-end-btn" : "break-take-btn";
     const isDisabled = !isRecording;
 
     return (
-        // Use a container class for styling the section
         <div className="button-container">
-
-            {/* Break Timer Display */}
             <div className={`
                 timer-display 
                 break-timer-display
                 ${isTakingBreak ? 'break-active' : 'break-inactive'}
-                ${isDisabled ? 'disabled-display' : ''}
             `}>
                 {formatTime(breakTime)}
             </div>
@@ -188,7 +181,6 @@ const BreakButton = () => {
             <button
                 onClick={toggleBreak}
                 disabled={isDisabled}
-                // Apply descriptive classes
                 className={`${buttonClass} ${isDisabled ? 'disabled' : ''}`}
             >
                 {isTakingBreak ? "End Break" : "Take Break"}
@@ -197,26 +189,31 @@ const BreakButton = () => {
     );
 };
 
+export const SystemStatus = () => {
+    const { isRecording } = useContext(RecordingContext);
+    const statusText = isRecording ? "Status: Recording Active" : "Status: Ready to Start";
+    const statusClass = isRecording ? "system-status-active" : "system-status-required";
+
+    return (
+        <div className={`system-status-container ${statusClass}`}>
+            <p className="size font-bold text-center">{statusText}</p>
+        </div>
+    );
+};
 
 const RecordingIndicator = () => {
     const { isRecording, isTakingBreak, elapsedTime, breakTime } = useContext(RecordingContext);
 
     if (!isRecording) {
-        // Updated text styling to use a simple CSS class for centering/color
         return <div className="indicator-standby">No active session.</div>;
     }
 
-    // Determine the main indicator background/border class
     const indicatorClass = isTakingBreak ? 'indicator-break-session' : 'indicator-active-session';
-
-    // Determine the pulsing dot color class
     const dotClass = isTakingBreak ? 'dot-break' : 'dot-active';
 
     return (
-        // Use base class plus the status class
         <div className={`indicator-base ${indicatorClass}`}>
             <div className="indicator-header">
-                {/* Status Dot */}
                 <span className={`indicator-dot animate-pulse ${dotClass}`}></span>
                 <span className="indicator-title">
                     {isTakingBreak ? "SESSION PAUSED (BREAK)" : "LIVE DRIVING SESSION"}
@@ -236,5 +233,6 @@ export {
     RecordingButton,
     BreakButton,
     RecordingIndicator,
-    formatTime
+    formatTime,
+    formatClock,
 };

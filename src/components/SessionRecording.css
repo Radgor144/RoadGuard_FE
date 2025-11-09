@@ -19,8 +19,18 @@
 }
 
 .timer-display.active {
-    color: #dc2626; /* text-red-600 */
-    background-color: #fef2f2; /* bg-red-50 */
+    color: #dc2626; /* Red text */
+    background-color: #fef2f2; /* Light Red background */
+}
+
+.timer-display.inactive {
+    color: #1b875e; /* Green text */
+    background-color: #ecfdf5; /* Light Green background */
+}
+
+.timer-display.onBreak {
+    color: #232323; /* Dark Gray text */
+    background-color: #5e5e5e; /* Light Gray background */
 }
 
 /* Base button styles */
@@ -40,11 +50,11 @@ button {
 
 /* Start Button */
 .recording-start-btn {
-    background-color: #22c55e; /* bg-green-500 */
-    border-color: #bbf7d0; /* ring-green-300 */
+    background-color: #1b875e; /* bg-green-500 */
+    border-color: #afffe1; /* ring-green-300 */
 }
 .recording-start-btn:hover {
-    background-color: #16a34a; /* hover:bg-green-600 */
+    background-color: #156546; /* hover:bg-green-600 */
 }
 
 /* Stop Button */
@@ -79,8 +89,8 @@ button {
 
 /* Timer Color for Inactive Break (Gray) */
 .break-timer-display.break-inactive {
-    color: #4b5563; /* Gray text */
-    background-color: #e5e7eb; /* Light Gray background */
+    color: #232323; /* Dark Gray text */
+    background-color: #5e5e5e; /* Light Gray background */
 }
 
 /* Take Break Button (Blue) */
@@ -198,23 +208,26 @@ button {
 .main-header {
     font-size: 2rem;
     font-weight: bold;
-    color: #1f2937; /* Dark text */
+    color: #1f2937;
     margin-bottom: 30px;
 }
 
 .buttons-row-layout {
     display: flex;
-    flex-direction: column; /* Default: stack vertically on small screens */
+    flex-wrap: wrap;
     align-items: center;
-    gap: 30px; /* Vertical space between buttons on mobile */
-    padding: 20px 0;
+    justify-content: center;
+    gap: 1rem;
+    width: 100%;
 }
 
-/* Media Query: Switch to horizontal layout on larger screens (e.g., 600px wide) */
 @media (min-width: 600px) {
     .buttons-row-layout {
-        flex-direction: row; /* Change to side-by-side */
-        justify-content: center; /* Center the two buttons */
-        gap: 40px; /* Horizontal space between buttons */
+        gap: 1.5rem;
+        flex-wrap: nowrap;
     }
+}
+
+.button-container {
+    flex-grow: 1;
 }
