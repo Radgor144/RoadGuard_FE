@@ -8,7 +8,7 @@ import LiveFeed from "./components/LiveFeed";
 function App() {
     return (
         <BrowserRouter>
-            <div className="App">
+            <div className="App" style={{backgroundColor: '#0e1319', 'nav-height': '120px', paddingTop: '20px'}}>
                 <header>Welcome in Road Guard!</header>
 
                 <nav aria-label="Main menu">
@@ -37,26 +37,6 @@ function App() {
                         <Route path="/about" element={<About />} />
                         <Route
                             path="/roadguard"
-                            /* element={
-                                <div className="roadguard-wrapper">
-                                    <div className="camera">
-                                        <DriverMonitoring />
-                                    </div>
-
-                                    <div className="gauge">
-                                        <GaugeComponent
-                                            size={200}
-                                            value={10}
-                                            minValue={0}
-                                            maxValue={100}
-                                            label="Driver Alertness"
-                                            color="#FF0000"
-                                        />
-                                    </div>
-
-                                    <RoadGuard />
-                                </div>
-                            } */
                             element={<LiveFeed />}
                         />
                         <Route path="/stats" element={<Stats />} />
