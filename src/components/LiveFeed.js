@@ -9,8 +9,8 @@ import {
     SystemStatus,
     formatClock
 } from "./SessionRecording";
-import {GaugeComponent} from "react-gauge-component";
 import EventHistory from "./EventHistory";
+import {TirednessGauge} from "./TirednessGauge";
 
 export const LiveFeed = () => {
 
@@ -18,7 +18,8 @@ export const LiveFeed = () => {
         const {
             isTakingBreak,
             timeSinceLastBreak,
-            startTime
+            startTime,
+            focusPercent
         } = React.useContext(RecordingContext);
 
         const lastBreakDisplay = () => {
@@ -33,8 +34,6 @@ export const LiveFeed = () => {
             }
             return <span className="font-semibold text-gray-500">N/A</span>;
         };
-
-        const fatigueLevel = 20;
 
         return (
             <div className="transparent text-white p-4 sm:p-8 flex items-center justify-center font-sans"
@@ -53,28 +52,7 @@ export const LiveFeed = () => {
                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
                                 <div
                                     className="bg-gray-900 rounded-xl shadow-lg flex flex-col items-center justify-center p-4 pt-8 md:col-span-1">
-                                        <GaugeComponent
-                                            value={fatigueLevel}
-                                            type="radial"
-                                            arc={{
-                                                subArcs: [
-                                                    {limit: 25, color: '#cb1224'},
-                                                    {limit: 50, color: '#f59e0b'},
-                                                    {limit: 100, color: '#1b875e'}
-                                                ]
-                                            }}
-                                            pointer={{type: "needle", color: "#ffffff"}}
-                                            labels={{
-                                                valueLabel: {
-                                                    formatTextValue: (v) => v + '%',
-                                                    style: {fontSize: '40px', fill: '#fff'}
-                                                }
-                                            }}
-                                            min={0}
-                                            max={100}
-                                            className="w-full h-90"
-                                            marginInPercent={{top: 0.02, right: 0.02, bottom: 0.02, left: 0.02}}
-                                        />
+                                        <TirednessGauge focusLevel={focusPercent} />
                                 </div>
 
                                 <div className="md:col-span-1 flex flex-col justify-between gap-6">

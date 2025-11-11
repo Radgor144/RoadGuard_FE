@@ -7,13 +7,26 @@ import CanvasOverlay from './CanvasOverlay';
 import StatusDisplay from './StatusDisplay';
 import { RecordingContext } from '../../components/SessionRecording';
 
-const EAR_THRESHOLD = 0.2;
+const EAR_THRESHOLD = 0.2; // immediate eye-closed alert threshold
+const FOCUS_UPDATE_INTERVAL = 2000; // ms
+
+// Mapping range: EAR -> focusPercent
+const FOCUS_EAR_MIN = 0.1; // maps to 0%
+const FOCUS_EAR_MAX = 0.4; // maps to 100%
+
+function mapEarToFocusPercent(avgEAR) {
+    if (typeof avgEAR !== 'number' || isNaN(avgEAR)) return 100;
+    if (avgEAR <= FOCUS_EAR_MIN) return 0;
+    if (avgEAR >= FOCUS_EAR_MAX) return 100;
+    const ratio = (avgEAR - FOCUS_EAR_MIN) / (FOCUS_EAR_MAX - FOCUS_EAR_MIN);
+    return Math.round(Math.max(0, Math.min(1, ratio)) * 100);
+}
 
 export default function DriverMonitoring() {
     const webcamRef = useRef(null);
     const latestEAR = useRef(null);
 
-    const { addEvent } = useContext(RecordingContext);
+    const { addEvent, setFocusPercent } = useContext(RecordingContext);
 
     const [status, setStatus] = useState('idle');
     const [faceCount, setFaceCount] = useState(0);
@@ -23,6 +36,7 @@ export default function DriverMonitoring() {
     const { isConnected } = useWebSocket(latestEAR);
 
     const lastFocusAlertRef = useRef(false);
+    const lastFocusUpdateRef = useRef(0);
 
     const onResults = useCallback((results) => {
         if (!results.image) return;
@@ -33,6 +47,8 @@ export default function DriverMonitoring() {
             ? 'no faces detected'
             : `faces detected: ${faces.length} | WS: ${isConnected ? 'Connected' : 'Connecting...'}`
         );
+
+        const now = Date.now();
 
         if (faces.length > 0) {
             const landmarks = faces[0];
@@ -47,29 +63,43 @@ export default function DriverMonitoring() {
             const leftEAR = calculateEAR(leftEye);
             const rightEAR = calculateEAR(rightEye);
             const avgEAR = (leftEAR + rightEAR) / 2;
-            const currentEAR = Number(avgEAR.toFixed(3));
+            const roundedEAR = Number(avgEAR.toFixed(3));
 
-            setCurrentEAR(currentEAR);
-            latestEAR.current = currentEAR;
+            setCurrentEAR(roundedEAR);
+            latestEAR.current = roundedEAR;
 
+            // immediate eyes-closed event (legacy behavior)
             if (avgEAR < EAR_THRESHOLD) {
                 console.log('Eyes closed! EAR=', avgEAR);
                 addEvent && addEvent('Eyes closed detected', 'warning');
             }
 
-            const focusPercent = Math.min(100, Math.round((avgEAR / 0.3) * 100));
-            if (focusPercent < 50 && !lastFocusAlertRef.current) {
-                addEvent && addEvent(`Focus level low: ${focusPercent}%`, 'warning');
-                lastFocusAlertRef.current = true;
-            } else if (focusPercent >= 50) {
-                lastFocusAlertRef.current = false;
+            // Compute focus percent using linear mapping between FOCUS_EAR_MIN..FOCUS_EAR_MAX
+            const focusPercentComputed = mapEarToFocusPercent(avgEAR);
+
+            // Throttle updates to context every FOCUS_UPDATE_INTERVAL ms
+            if (now - lastFocusUpdateRef.current >= FOCUS_UPDATE_INTERVAL) {
+                setFocusPercent && setFocusPercent(focusPercentComputed);
+                lastFocusUpdateRef.current = now;
+
+                // emit low-focus event only on updates (throttled)
+                if (focusPercentComputed < 50 && !lastFocusAlertRef.current) {
+                    addEvent && addEvent(`Focus level low: ${focusPercentComputed}%`, 'warning');
+                    lastFocusAlertRef.current = true;
+                } else if (focusPercentComputed >= 50) {
+                    lastFocusAlertRef.current = false;
+                }
             }
         } else {
             setLandmarks(null);
             setCurrentEAR(null);
             latestEAR.current = null;
+            // no face -> treat as 100% focus (or change if desired)
+            setFocusPercent && setFocusPercent(100);
+            lastFocusUpdateRef.current = now;
+            lastFocusAlertRef.current = false;
         }
-    }, [isConnected, addEvent]);
+    }, [isConnected, addEvent, setFocusPercent]);
 
     const { startFaceMesh, isLoading } = useFaceMesh(webcamRef, onResults);
 
