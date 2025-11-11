@@ -10,6 +10,7 @@ import {
     formatClock
 } from "./SessionRecording";
 import {GaugeComponent} from "react-gauge-component";
+import EventHistory from "./EventHistory";
 
 export const LiveFeed = () => {
 
@@ -33,7 +34,7 @@ export const LiveFeed = () => {
             return <span className="font-semibold text-gray-500">N/A</span>;
         };
 
-        const fatigueLevel = 60;
+        const fatigueLevel = 20;
 
         return (
             <div className="transparent text-white p-4 sm:p-8 flex items-center justify-center font-sans"
@@ -57,9 +58,9 @@ export const LiveFeed = () => {
                                             type="radial"
                                             arc={{
                                                 subArcs: [
-                                                    {limit: 50, color: '#1b875e'},
-                                                    {limit: 75, color: '#f59e0b'},
-                                                    {limit: 100, color: '#cb1224'}
+                                                    {limit: 25, color: '#cb1224'},
+                                                    {limit: 50, color: '#f59e0b'},
+                                                    {limit: 100, color: '#1b875e'}
                                                 ]
                                             }}
                                             pointer={{type: "needle", color: "#ffffff"}}
@@ -97,8 +98,6 @@ export const LiveFeed = () => {
                                         className="font-semibold">{startTime ? formatClock(startTime) : 'N/A'}</span>
                                     </p>
                                     <p>Last Break: <span className="font-semibold">{lastBreakDisplay()}</span></p>
-                                    <p className="pt-2 text-sm text-yellow-400 font-medium">Status: Optimal driving
-                                        conditions.</p>
                                 </div>
                             </div>
 
@@ -120,21 +119,7 @@ export const LiveFeed = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-gray-900 p-5 rounded-xl shadow-lg">
-                                <h2 className="text-xl font-bold mb-3 text-indigo-400">Alert History</h2>
-                                <ul className="space-y-2 text-sm text-gray-400">
-                                    <li className="border-l-2 border-red-500 pl-3">
-                                        <span className="font-semibold text-white">10:32 AM:</span> Microsleep Detected
-                                    </li>
-                                    <li className="border-l-2 border-yellow-500 pl-3">
-                                        <span className="font-semibold text-white">10:30 AM:</span> Lane Departure
-                                        Warning
-                                    </li>
-                                    <li className="border-l-2 border-green-500 pl-3">
-                                        <span className="font-semibold text-white">10:28 AM:</span> Yawn Detected
-                                    </li>
-                                </ul>
-                            </div>
+                            <EventHistory />
 
                         </div>
                     </main>

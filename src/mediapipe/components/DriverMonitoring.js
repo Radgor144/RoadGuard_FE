@@ -1,10 +1,11 @@
-import React, {useCallback, useRef, useState} from 'react';
+import React, {useCallback, useRef, useState, useContext} from 'react';
 import Webcam from 'react-webcam';
 import {calculateEAR} from '../utils/calculateEAR';
 import {useFaceMesh} from '../hooks/useFaceMesh';
 import {useWebSocket} from '../hooks/useWebSocket';
 import CanvasOverlay from './CanvasOverlay';
 import StatusDisplay from './StatusDisplay';
+import { RecordingContext } from '../../components/SessionRecording';
 
 const EAR_THRESHOLD = 0.2;
 
@@ -12,12 +13,16 @@ export default function DriverMonitoring() {
     const webcamRef = useRef(null);
     const latestEAR = useRef(null);
 
+    const { addEvent } = useContext(RecordingContext);
+
     const [status, setStatus] = useState('idle');
     const [faceCount, setFaceCount] = useState(0);
     const [currentEAR, setCurrentEAR] = useState(null);
     const [landmarks, setLandmarks] = useState(null);
 
     const { isConnected } = useWebSocket(latestEAR);
+
+    const lastFocusAlertRef = useRef(false);
 
     const onResults = useCallback((results) => {
         if (!results.image) return;
@@ -49,13 +54,22 @@ export default function DriverMonitoring() {
 
             if (avgEAR < EAR_THRESHOLD) {
                 console.log('Eyes closed! EAR=', avgEAR);
+                addEvent && addEvent('Eyes closed detected', 'warning');
+            }
+
+            const focusPercent = Math.min(100, Math.round((avgEAR / 0.3) * 100));
+            if (focusPercent < 50 && !lastFocusAlertRef.current) {
+                addEvent && addEvent(`Focus level low: ${focusPercent}%`, 'warning');
+                lastFocusAlertRef.current = true;
+            } else if (focusPercent >= 50) {
+                lastFocusAlertRef.current = false;
             }
         } else {
             setLandmarks(null);
             setCurrentEAR(null);
             latestEAR.current = null;
         }
-    }, [isConnected]);
+    }, [isConnected, addEvent]);
 
     const { startFaceMesh, isLoading } = useFaceMesh(webcamRef, onResults);
 
