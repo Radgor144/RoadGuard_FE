@@ -27,6 +27,8 @@ const RecordingContext = createContext({
     timeSinceLastBreak: 0,
     eventHistory: [],
     addEvent: () => {},
+    focusPercent: 100,
+    setFocusPercent: () => {},
 });
 
 const RecordingProvider = ({ children }) => {
@@ -41,6 +43,7 @@ const RecordingProvider = ({ children }) => {
     const [timeSinceLastBreak, setTimeSinceLastBreak] = useState(0);
 
     const [eventHistory, setEventHistory] = useState([]);
+    const [focusPercent, setFocusPercent] = useState(100);
 
     // Driving timer
     useEffect(() => {
@@ -91,7 +94,7 @@ const RecordingProvider = ({ children }) => {
             message,
             type
         };
-        setEventHistory(prev => [e, ...prev].slice(0, 10)); // keep recent 100
+        setEventHistory(prev => [e, ...prev].slice(0, 10)); // keep recent 10
         console.log('Event:', message);
     };
 
@@ -154,6 +157,8 @@ const RecordingProvider = ({ children }) => {
         lastBreakEndTime,
         eventHistory,
         addEvent,
+        focusPercent,
+        setFocusPercent,
     };
 
     return (
