@@ -40,9 +40,8 @@ export const useWebSocket = (latestEARRef) => {
         const interval = setInterval(() => {
             if (stompClient && stompClient.connected && latestEARRef.current !== null) {
                 const message = {
-                    driverId: "testing_driver",
-                    ear: latestEARRef.current,
-                    timestamp: Date.now()
+                    driverId: "63a27a59-e8f0-4e03-a4f3-f27f853888f9",
+                    ear: latestEARRef.current
                 };
 
                 stompClient.publish({
