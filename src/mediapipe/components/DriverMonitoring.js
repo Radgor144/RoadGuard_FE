@@ -1,3 +1,4 @@
+// javascript
 import React, {useCallback, useRef, useState, useContext} from 'react';
 import Webcam from 'react-webcam';
 import {calculateEAR} from '../utils/calculateEAR';
@@ -10,16 +11,43 @@ import { RecordingContext } from '../../components/SessionRecording';
 const EAR_THRESHOLD = 0.2; // immediate eye-closed alert threshold
 const FOCUS_UPDATE_INTERVAL = 2000; // ms
 
-// Mapping range: EAR -> focusPercent
-const FOCUS_EAR_MIN = 0.1; // maps to 0%
-const FOCUS_EAR_MAX = 0.4; // maps to 100%
+// Focus EAR mapping constants
+const FOCUS_EAR_MIN_MAP = 0.1; // mapuje do 0%
+const FOCUS_EAR_LEVEL_1 = 0.27; // mapuje do 25%
+const FOCUS_EAR_LEVEL_2 = 0.35; // mapuje do 50%
+const FOCUS_EAR_MAX_MAP = 0.4;  // mapuje do 100%
 
-function mapEarToFocusPercent(avgEAR) {
-    if (typeof avgEAR !== 'number' || isNaN(avgEAR)) return 100;
-    if (avgEAR <= FOCUS_EAR_MIN) return 0;
-    if (avgEAR >= FOCUS_EAR_MAX) return 100;
-    const ratio = (avgEAR - FOCUS_EAR_MIN) / (FOCUS_EAR_MAX - FOCUS_EAR_MIN);
-    return Math.round(Math.max(0, Math.min(1, ratio)) * 100);
+function mapEarToFocusPercent(EAR) {
+    if (typeof EAR !== 'number' || isNaN(EAR)) return 100;
+
+    if (EAR >= FOCUS_EAR_MAX_MAP) return 100;
+    if (EAR <= FOCUS_EAR_MIN_MAP) return 0;
+
+    let focusPercent = 0;
+
+    if (EAR < FOCUS_EAR_LEVEL_1) {
+        const rangeEar = FOCUS_EAR_LEVEL_1 - FOCUS_EAR_MIN_MAP;
+        const earInRange = EAR - FOCUS_EAR_MIN_MAP;
+        const rangeFocus = 25;
+
+        focusPercent = rangeFocus * (earInRange / rangeEar);
+
+    } else if (EAR < FOCUS_EAR_LEVEL_2) {
+        const rangeEar = FOCUS_EAR_LEVEL_2 - FOCUS_EAR_LEVEL_1;
+        const earInRange = EAR - FOCUS_EAR_LEVEL_1;
+        const rangeFocus = 25;
+
+        focusPercent = 25 + rangeFocus * (earInRange / rangeEar);
+
+    } else {
+        const rangeEar = FOCUS_EAR_MAX_MAP - FOCUS_EAR_LEVEL_2;
+        const earInRange = EAR - FOCUS_EAR_LEVEL_2;
+        const rangeFocus = 50;
+
+        focusPercent = 50 + rangeFocus * (earInRange / rangeEar);
+    }
+
+    return Math.round(focusPercent);
 }
 
 export default function DriverMonitoring() {
@@ -37,6 +65,10 @@ export default function DriverMonitoring() {
 
     const lastFocusAlertRef = useRef(false);
     const lastFocusUpdateRef = useRef(0);
+
+    // Accumulators for EAR samples within the period
+    const sumEarRef = useRef(0);
+    const sampleCountRef = useRef(0);
 
     const onResults = useCallback((results) => {
         if (!results.image) return;
@@ -60,25 +92,45 @@ export default function DriverMonitoring() {
             const leftEye = leftEyeIndices.map(i => landmarks[i]);
             const rightEye = rightEyeIndices.map(i => landmarks[i]);
 
-            const leftEAR = calculateEAR(leftEye);
+            const leftEAR = calculateEAR(leftEye);   // raw EAR (e.g. 0.09 - 0.4)
             const rightEAR = calculateEAR(rightEye);
-            const avgEAR = (leftEAR + rightEAR) / 2;
-            const roundedEAR = Number(avgEAR.toFixed(3));
 
-            setCurrentEAR(roundedEAR);
-            latestEAR.current = roundedEAR;
+            // average raw EAR for this frame
+            const rawAvgEar = (leftEAR + rightEAR) / 2;
 
-            // immediate eyes-closed event (legacy behavior)
-            if (avgEAR < EAR_THRESHOLD) {
-                console.log('Eyes closed! EAR=', avgEAR);
+            // accumulate for period averaging
+            if (typeof rawAvgEar === 'number' && !isNaN(rawAvgEar)) {
+                sumEarRef.current += rawAvgEar;
+                sampleCountRef.current += 1;
+            }
+
+            // update currentEAR shown in UI (rounded)
+            setCurrentEAR(Number(rawAvgEar.toFixed(3)));
+            latestEAR.current = rawAvgEar;
+
+            // immediate eyes-closed event using raw EAR
+            if (rawAvgEar < EAR_THRESHOLD) {
+                console.log('Eyes closed! EAR=', rawAvgEar);
                 addEvent && addEvent('Eyes closed detected', 'warning');
             }
 
-            // Compute focus percent using linear mapping between FOCUS_EAR_MIN..FOCUS_EAR_MAX
-            const focusPercentComputed = mapEarToFocusPercent(avgEAR);
-
             // Throttle updates to context every FOCUS_UPDATE_INTERVAL ms
             if (now - lastFocusUpdateRef.current >= FOCUS_UPDATE_INTERVAL) {
+                const samples = sampleCountRef.current;
+                let avgEarForPeriod = null;
+                if (samples > 0) {
+                    avgEarForPeriod = sumEarRef.current / samples;
+                }
+
+                // reset accumulators for next period
+                sumEarRef.current = 0;
+                sampleCountRef.current = 0;
+
+                // If we have a computed average EAR for the period, map to percent
+                const focusPercentComputed = (avgEarForPeriod === null)
+                    ? 100
+                    : mapEarToFocusPercent(avgEarForPeriod);
+
                 setFocusPercent && setFocusPercent(focusPercentComputed);
                 lastFocusUpdateRef.current = now;
 
@@ -91,10 +143,12 @@ export default function DriverMonitoring() {
                 }
             }
         } else {
+            // no face -> reset accumulators and treat as 100% focus (or change if desired)
             setLandmarks(null);
             setCurrentEAR(null);
             latestEAR.current = null;
-            // no face -> treat as 100% focus (or change if desired)
+            sumEarRef.current = 0;
+            sampleCountRef.current = 0;
             setFocusPercent && setFocusPercent(100);
             lastFocusUpdateRef.current = now;
             lastFocusAlertRef.current = false;
