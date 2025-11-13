@@ -23,6 +23,8 @@ function mapEarToFocusPercent(EAR) {
     if (EAR >= FOCUS_EAR_MAX_MAP) return 100;
     if (EAR <= FOCUS_EAR_MIN_MAP) return 0;
 
+    let focusPercent = 0;
+
     if (EAR < FOCUS_EAR_LEVEL_1) {
         const rangeEar = FOCUS_EAR_LEVEL_1 - FOCUS_EAR_MIN_MAP;
         const earInRange = EAR - FOCUS_EAR_MIN_MAP;
