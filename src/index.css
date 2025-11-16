@@ -173,3 +173,24 @@ main
     justify-content: center;
     align-items: center;
 }
+
+.top-right-auth
+{
+    position: absolute;
+    top: 15px;
+    right: 25px;
+    display: flex;
+    gap: 20px;
+}
+
+.auth-link
+{
+    color: #1B885E;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.auth-link:hover
+{
+    color: #CA1223;
+}
