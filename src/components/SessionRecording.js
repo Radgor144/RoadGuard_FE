@@ -25,6 +25,10 @@ const RecordingContext = createContext({
     breakTime: 0,
     toggleBreak: () => {},
     timeSinceLastBreak: 0,
+    eventHistory: [],
+    addEvent: () => {},
+    focusPercent: 100,
+    setFocusPercent: () => {},
 });
 
 const RecordingProvider = ({ children }) => {
@@ -37,6 +41,9 @@ const RecordingProvider = ({ children }) => {
 
     const [lastBreakEndTime, setLastBreakEndTime] = useState(0);
     const [timeSinceLastBreak, setTimeSinceLastBreak] = useState(0);
+
+    const [eventHistory, setEventHistory] = useState([]);
+    const [focusPercent, setFocusPercent] = useState(100);
 
     // Driving timer
     useEffect(() => {
@@ -64,7 +71,7 @@ const RecordingProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, [isTakingBreak]);
 
-    // Aktualizuje timeSinceLastBreak na podstawie lastBreakEndTime
+    // Time since last break timer
     useEffect(() => {
         let interval = null;
         if (lastBreakEndTime > 0) {
@@ -79,9 +86,21 @@ const RecordingProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, [lastBreakEndTime]);
 
+    // Event logging
+    const addEvent = (message, type = 'info') => {
+        const e = {
+            id: Date.now() + Math.random(),
+            timestamp: Date.now(),
+            message,
+            type
+        };
+        setEventHistory(prev => [e, ...prev].slice(0, 10)); // keep recent 10
+        console.log('Event:', message);
+    };
+
     const toggleRecording = () => {
         if (isRecording) {
-            // Stop recording: clear break and reset related timers/state (including last break info)
+            // Stop recording
             setIsRecording(false);
             if (isTakingBreak) setIsTakingBreak(false);
             setBreakTime(0);
@@ -90,12 +109,16 @@ const RecordingProvider = ({ children }) => {
             // Reset last break info when driving session ends
             setLastBreakEndTime(0);
             setTimeSinceLastBreak(0);
+
+            addEvent('Driving ended', 'info');
         } else {
-            // Start recording: reset elapsed and set start timestamp
+            // Start recording
             setElapsedTime(0);
             setIsRecording(true);
-            setStartTime(Date.now());
-            // keep lastBreakEndTime/timeSinceLastBreak as-is (they reflect previous session) or clear if desired
+            const now = Date.now();
+            setStartTime(now);
+            addEvent('Driving started', 'info');
+            // keep lastBreakEndTime/timeSinceLastBreak as-is
         }
         console.log(isRecording ? "Stopping Recording..." : "Starting Recording...");
     };
@@ -110,13 +133,14 @@ const RecordingProvider = ({ children }) => {
             // Ending break
             setIsTakingBreak(false);
             setLastBreakEndTime(Date.now());
-            // timeSinceLastBreak starts updating from effect above
+            addEvent('Break ended', 'info');
             console.log("Break ended. Resuming recording.");
         } else {
             // Starting break
             setBreakTime(0);
             setIsTakingBreak(true);
             setLastBreakEndTime(0); // clear previous last-break timestamp while on break
+            addEvent('Break started', 'info');
             console.log("Break started. Driving timer paused.");
         }
     };
@@ -130,7 +154,11 @@ const RecordingProvider = ({ children }) => {
         timeSinceLastBreak,
         toggleBreak,
         startTime,
-        lastBreakEndTime
+        lastBreakEndTime,
+        eventHistory,
+        addEvent,
+        focusPercent,
+        setFocusPercent,
     };
 
     return (
