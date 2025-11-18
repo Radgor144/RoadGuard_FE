@@ -12,7 +12,7 @@ const EAR_THRESHOLD = 0.2; // immediate eye-closed alert threshold
 const FOCUS_UPDATE_INTERVAL = 2000; // ms
 
 // Focus EAR mapping constants
-const FOCUS_EAR_MIN_MAP = 0.1; // mapuje do 0%
+const FOCUS_EAR_MIN_MAP = EAR_THRESHOLD; // mapuje do 0%
 const FOCUS_EAR_LEVEL_1 = 0.27; // mapuje do 25%
 const FOCUS_EAR_LEVEL_2 = 0.35; // mapuje do 50%
 const FOCUS_EAR_MAX_MAP = 0.4;  // mapuje do 100%
@@ -25,6 +25,7 @@ function mapEarToFocusPercent(EAR) {
 
     let focusPercent;
 
+    // range 1 - 0% to 25%
     if (EAR < FOCUS_EAR_LEVEL_1) {
         const rangeEar = FOCUS_EAR_LEVEL_1 - FOCUS_EAR_MIN_MAP;
         const earInRange = EAR - FOCUS_EAR_MIN_MAP;
@@ -32,6 +33,7 @@ function mapEarToFocusPercent(EAR) {
 
         focusPercent = rangeFocus * (earInRange / rangeEar);
 
+        // range 2 - 25% to 50%
     } else if (EAR < FOCUS_EAR_LEVEL_2) {
         const rangeEar = FOCUS_EAR_LEVEL_2 - FOCUS_EAR_LEVEL_1;
         const earInRange = EAR - FOCUS_EAR_LEVEL_1;
@@ -39,6 +41,7 @@ function mapEarToFocusPercent(EAR) {
 
         focusPercent = 25 + rangeFocus * (earInRange / rangeEar);
 
+        // range 3 - 50% to 100%
     } else {
         const rangeEar = FOCUS_EAR_MAX_MAP - FOCUS_EAR_LEVEL_2;
         const earInRange = EAR - FOCUS_EAR_LEVEL_2;
