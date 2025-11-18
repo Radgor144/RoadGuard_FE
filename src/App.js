@@ -37,7 +37,6 @@ function App() {
                         <Route path="/register" element={<Register />} />
                     </Routes>
                 </main>
-
             </div>
         </BrowserRouter>
     );
