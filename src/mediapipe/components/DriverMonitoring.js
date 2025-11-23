@@ -70,8 +70,9 @@ export default function DriverMonitoring() {
     const lastFocusUpdateRef = useRef(0);
 
     // Accumulators for EAR samples within the period
-    const sumEarRef = useRef(0);
-    const sampleCountRef = useRef(0);
+    // keep raw EAR samples for the current period; we'll take average of top N
+    const earSamplesRef = useRef([]);
+    const TOP_N_SAMPLES = 10;
 
     const onResults = useCallback((results) => {
         if (!results.image) return;
@@ -103,8 +104,8 @@ export default function DriverMonitoring() {
 
             // accumulate for period averaging
             if (typeof rawAvgEar === 'number' && !isNaN(rawAvgEar)) {
-                sumEarRef.current += rawAvgEar;
-                sampleCountRef.current += 1;
+                // push into samples array (we'll trim/reset on interval)
+                earSamplesRef.current.push(rawAvgEar);
             }
 
             // update currentEAR shown in UI (rounded)
@@ -119,15 +120,17 @@ export default function DriverMonitoring() {
 
             // Throttle updates to context every FOCUS_UPDATE_INTERVAL ms
             if (now - lastFocusUpdateRef.current >= FOCUS_UPDATE_INTERVAL) {
-                const samples = sampleCountRef.current;
+                const samplesArray = earSamplesRef.current;
                 let avgEarForPeriod = null;
-                if (samples > 0) {
-                    avgEarForPeriod = sumEarRef.current / samples;
+                if (samplesArray.length > 0) {
+                    // compute average of TOP_N_SAMPLES highest EARs
+                    const topSamples = samplesArray.slice().sort((a, b) => b - a).slice(0, TOP_N_SAMPLES);
+                    const sumTop = topSamples.reduce((s, v) => s + v, 0);
+                    avgEarForPeriod = sumTop / topSamples.length;
                 }
 
-                // reset accumulators for next period
-                sumEarRef.current = 0;
-                sampleCountRef.current = 0;
+                // reset samples for next period
+                earSamplesRef.current = [];
 
                 // If we have a computed average EAR for the period, map to percent
                 const focusPercentComputed = (avgEarForPeriod === null)
@@ -150,8 +153,7 @@ export default function DriverMonitoring() {
             setLandmarks(null);
             setCurrentEAR(null);
             latestEAR.current = null;
-            sumEarRef.current = 0;
-            sampleCountRef.current = 0;
+            earSamplesRef.current = [];
             setFocusPercent && setFocusPercent(100);
             lastFocusUpdateRef.current = now;
             lastFocusAlertRef.current = false;
