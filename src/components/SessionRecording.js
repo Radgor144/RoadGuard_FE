@@ -45,6 +45,11 @@ const RecordingProvider = ({ children }) => {
     const [eventHistory, setEventHistory] = useState([]);
     const [focusPercent, setFocusPercent] = useState(100);
 
+    // Expose current EAR and face count to the global context so the right panel can read them
+    const [currentEAR, setCurrentEAR] = useState(null);
+    const [faceCount, setFaceCount] = useState(0);
+    const [monitorStatus, setMonitorStatus] = useState('idle');
+
     // Driving timer
     useEffect(() => {
         let interval = null;
@@ -159,6 +164,13 @@ const RecordingProvider = ({ children }) => {
         addEvent,
         focusPercent,
         setFocusPercent,
+        // expose EAR/face data
+        currentEAR,
+        setCurrentEAR,
+        faceCount,
+        setFaceCount,
+        monitorStatus,
+        setMonitorStatus,
     };
 
     return (

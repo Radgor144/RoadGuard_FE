@@ -5,7 +5,6 @@ import {calculateEAR} from '../utils/calculateEAR';
 import {useFaceMesh} from '../hooks/useFaceMesh';
 import {useWebSocket} from '../hooks/useWebSocket';
 import CanvasOverlay from './CanvasOverlay';
-import StatusDisplay from './StatusDisplay';
 import { RecordingContext } from '../../components/SessionRecording';
 
 const EAR_THRESHOLD = 0.2; // immediate eye-closed alert threshold
@@ -57,14 +56,11 @@ export default function DriverMonitoring() {
     const webcamRef = useRef(null);
     const latestEAR = useRef(null);
 
-    const { addEvent, setFocusPercent } = useContext(RecordingContext);
+    const { addEvent, setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus } = useContext(RecordingContext);
 
-    const [status, setStatus] = useState('idle');
-    const [faceCount, setFaceCount] = useState(0);
-    const [currentEAR, setCurrentEAR] = useState(null);
     const [landmarks, setLandmarks] = useState(null);
 
-    const { isConnected } = useWebSocket(latestEAR);
+    useWebSocket(latestEAR);
 
     const lastFocusAlertRef = useRef(false);
     const lastFocusUpdateRef = useRef(0);
@@ -77,12 +73,9 @@ export default function DriverMonitoring() {
     const onResults = useCallback((results) => {
         if (!results.image) return;
         const faces = results.multiFaceLandmarks || [];
-        setFaceCount(faces.length);
-
-        setStatus(faces.length === 0
-            ? 'no faces detected'
-            : `faces detected: ${faces.length} | WS: ${isConnected ? 'Connected' : 'Connecting...'}`
-        );
+        // update global face count and monitor status (without numeric count)
+        setFaceCount && setFaceCount(faces.length);
+        setMonitorStatus && setMonitorStatus(faces.length === 0 ? 'no face detected' : 'face detected');
 
         const now = Date.now();
 
@@ -108,8 +101,9 @@ export default function DriverMonitoring() {
                 earSamplesRef.current.push(rawAvgEar);
             }
 
-            // update currentEAR shown in UI (rounded)
-            setCurrentEAR(Number(rawAvgEar.toFixed(3)));
+            // update currentEAR in global context (rounded)
+            const rounded = Number(rawAvgEar.toFixed(3));
+            setCurrentEAR && setCurrentEAR(rounded);
             latestEAR.current = rawAvgEar;
 
             // immediate eyes-closed event using raw EAR
@@ -151,14 +145,16 @@ export default function DriverMonitoring() {
         } else {
             // no face -> reset accumulators and treat as 100% focus (or change if desired)
             setLandmarks(null);
-            setCurrentEAR(null);
+            setCurrentEAR && setCurrentEAR(null);
+            setFaceCount && setFaceCount(0);
+            setMonitorStatus && setMonitorStatus('no face detected');
             latestEAR.current = null;
             earSamplesRef.current = [];
             setFocusPercent && setFocusPercent(100);
             lastFocusUpdateRef.current = now;
             lastFocusAlertRef.current = false;
         }
-    }, [isConnected, addEvent, setFocusPercent]);
+    }, [addEvent, setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus]);
 
     const { startFaceMesh, isLoading } = useFaceMesh(webcamRef, onResults);
 
@@ -172,9 +168,6 @@ export default function DriverMonitoring() {
                     Loading face detection...
                 </div>
             )}
-
-            <StatusDisplay status={status} faceCount={faceCount} currentEAR={currentEAR} />
-
             <Webcam
                 ref={webcamRef}
                 onUserMedia={startFaceMesh}
@@ -190,7 +183,6 @@ export default function DriverMonitoring() {
                     zIndex: 1,
                 }}
             />
-
             {landmarks && <CanvasOverlay videoWidth={videoWidth} videoHeight={videoHeight} landmarks={landmarks} />}
         </div>
     );

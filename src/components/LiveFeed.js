@@ -11,6 +11,7 @@ import {
 } from "./SessionRecording";
 import EventHistory from "./EventHistory";
 import {TirednessGauge} from "./TirednessGauge";
+import RealtimeData from './RealtimeData';
 
 export const LiveFeed = () => {
 
@@ -19,7 +20,10 @@ export const LiveFeed = () => {
             isTakingBreak,
             timeSinceLastBreak,
             startTime,
-            focusPercent
+            focusPercent,
+            currentEAR,
+            faceCount,
+            monitorStatus
         } = React.useContext(RecordingContext);
 
         const lastBreakDisplay = () => {
@@ -81,20 +85,7 @@ export const LiveFeed = () => {
 
                             <div className="bg-gray-900 p-5 rounded-xl shadow-lg">
                                 <h2 className="text-xl font-bold mb-3 text-indigo-400">Real-time Data</h2>
-                                <div className="space-y-2 text-gray-300">
-                                    <p className="flex justify-between">
-                                        <span>Eye Closure Ratio (PERCLOS):</span>
-                                        <span className="font-semibold text-green-400">12%</span>
-                                    </p>
-                                    <p className="flex justify-between">
-                                        <span>Yawn Frequency:</span>
-                                        <span className="font-semibold">0/min</span>
-                                    </p>
-                                    <p className="flex justify-between">
-                                        <span>Head Nodding:</span>
-                                        <span className="font-semibold text-green-400">Low</span>
-                                    </p>
-                                </div>
+                                <RealtimeData />
                             </div>
 
                             <EventHistory />
