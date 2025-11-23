@@ -21,9 +21,6 @@ export const LiveFeed = () => {
             timeSinceLastBreak,
             startTime,
             focusPercent,
-            currentEAR,
-            faceCount,
-            monitorStatus
         } = React.useContext(RecordingContext);
 
         const lastBreakDisplay = () => {
