@@ -106,12 +106,6 @@ export default function DriverMonitoring() {
             setCurrentEAR && setCurrentEAR(rounded);
             latestEAR.current = rawAvgEar;
 
-            // immediate eyes-closed event using raw EAR
-            if (rawAvgEar < EAR_THRESHOLD) {
-                console.log('Eyes closed! EAR=', rawAvgEar);
-                addEvent && addEvent('Eyes closed detected', 'warning');
-            }
-
             // Throttle updates to context every FOCUS_UPDATE_INTERVAL ms
             if (now - lastFocusUpdateRef.current >= FOCUS_UPDATE_INTERVAL) {
                 const samplesArray = earSamplesRef.current;

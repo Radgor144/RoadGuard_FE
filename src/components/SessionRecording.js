@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useContext, createContext} from "react";
+import React, {useEffect, useState, useContext, createContext, useRef} from "react";
 import './SessionRecording.css'
 
 const formatTime = (totalSeconds) => {
@@ -50,6 +50,22 @@ const RecordingProvider = ({ children }) => {
     const [faceCount, setFaceCount] = useState(0);
     const [monitorStatus, setMonitorStatus] = useState('idle');
 
+    // Alerts state (store full history for the session)
+    const [alerts, setAlerts] = useState([]);
+
+    // Internal flags to avoid spamming the same alert repeatedly
+    // use timestamps to allow cooldown-based re-alerting
+    const lastAlertFocus50 = useRef(0); // ms timestamp
+    const lastAlertFocus25 = useRef(0); // ms timestamp
+    const alertedSession4h = useRef(false);
+    const alertedNoBreak2h = useRef(false);
+
+    // Cooldown (seconds) for focus alerts to allow them to reappear periodically
+    const FOCUS_ALERT_COOLDOWN = 60; // seconds
+
+    // Keep last focus for comparison (optional)
+    const prevFocusRef = useRef(null);
+
     // Driving timer
     useEffect(() => {
         let interval = null;
@@ -91,7 +107,7 @@ const RecordingProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, [lastBreakEndTime]);
 
-    // Event logging
+    // Helper: add event to history (store full history, UI will limit visible portion)
     const addEvent = (message, type = 'info') => {
         const e = {
             id: Date.now() + Math.random(),
@@ -99,10 +115,86 @@ const RecordingProvider = ({ children }) => {
             message,
             type
         };
-        setEventHistory(prev => [e, ...prev].slice(0, 10)); // keep recent 10
+        // keep full history (do not slice) so user can scroll to see older events;
+        // UI limits visible area to ~10 items via max-height
+        setEventHistory(prev => [e, ...prev]);
         console.log('Event:', message);
     };
 
+    // Helper: add alert (store full history; UI will slice last 10)
+    const addAlert = (message, type = 'warning') => {
+        const a = {
+            id: Date.now() + Math.random(),
+            timestamp: Date.now(),
+            message,
+            type
+        };
+        // append to full alerts history for the session
+        setAlerts(prev => [...prev, a]);
+        // also mirror into event history so user sees recent alerts in EventHistory (keep recent 10 there)
+        // mirror entire alert into eventHistory without slicing so full history is preserved
+        setEventHistory(prev => [{...a, message: a.message, type: a.type, timestamp: a.timestamp, id: a.id}, ...prev]);
+        console.log('Alert:', message);
+    };
+
+    // Derived: alerts to display (last 10, newest first)
+    const displayAlerts = alerts.slice(-10).reverse();
+
+    // Monitor focus percentage and generate alerts when crossing thresholds
+    useEffect(() => {
+        // Only monitor when recording and not on break
+        if (!isRecording || isTakingBreak) {
+            prevFocusRef.current = null;
+            return;
+        }
+
+        const fp = typeof focusPercent === 'number' ? focusPercent : 100;
+        const now = Date.now();
+
+        // if user requested reset behavior when session starts, prevFocusRef will be null at start
+        if (prevFocusRef.current === null) prevFocusRef.current = fp;
+
+        // Trigger critical first (<=25) with cooldown
+        if (fp <= 25) {
+            const last25 = lastAlertFocus25.current || 0;
+            if (now - last25 >= FOCUS_ALERT_COOLDOWN * 1000) {
+                addAlert('Critical: Focus dropped below 25%', 'critical');
+                lastAlertFocus25.current = now;
+                // also mark 50s timestamp so warning doesn't fire immediately after
+                lastAlertFocus50.current = now;
+            }
+        } else if (fp <= 50) {
+            const last50 = lastAlertFocus50.current || 0;
+            if (now - last50 >= FOCUS_ALERT_COOLDOWN * 1000) {
+                addAlert('Warning: Focus dropped below 50%', 'warning');
+                lastAlertFocus50.current = now;
+            }
+        }
+
+        prevFocusRef.current = fp;
+    }, [focusPercent, isRecording, isTakingBreak]);
+
+    // Monitor driving session length (4 hours)
+    useEffect(() => {
+        if (!isRecording) return;
+        const FOUR_HOURS = 4 * 3600;
+        if (elapsedTime >= FOUR_HOURS && !alertedSession4h.current) {
+            addAlert('Attention: Driving session exceeded 4 hours', 'alert');
+            alertedSession4h.current = true;
+        }
+    }, [elapsedTime, isRecording]);
+
+    // Monitor time since last break (>2 hours)
+    useEffect(() => {
+        if (!isRecording) return;
+        const TWO_HOURS = 2 * 3600;
+        if (timeSinceLastBreak >= TWO_HOURS && !alertedNoBreak2h.current) {
+            addAlert('Attention: More than 2 hours since last break', 'alert');
+            alertedNoBreak2h.current = true;
+        }
+    }, [timeSinceLastBreak, isRecording]);
+
+    // Event logging helpers (start/stop/reset) and alert reset management
     const toggleRecording = () => {
         if (isRecording) {
             // Stop recording
@@ -115,6 +207,12 @@ const RecordingProvider = ({ children }) => {
             setLastBreakEndTime(0);
             setTimeSinceLastBreak(0);
 
+            // reset alert flags for next session
+            lastAlertFocus25.current = 0;
+            lastAlertFocus50.current = 0;
+            alertedSession4h.current = false;
+            alertedNoBreak2h.current = false;
+
             addEvent('Driving ended', 'info');
         } else {
             // Start recording
@@ -122,6 +220,16 @@ const RecordingProvider = ({ children }) => {
             setIsRecording(true);
             const now = Date.now();
             setStartTime(now);
+
+            // reset alert flags on new session
+            lastAlertFocus25.current = 0;
+            lastAlertFocus50.current = 0;
+            alertedSession4h.current = false;
+            alertedNoBreak2h.current = false;
+
+            // reset full alerts history for the new driving session
+            setAlerts([]);
+
             addEvent('Driving started', 'info');
             // keep lastBreakEndTime/timeSinceLastBreak as-is
         }
@@ -138,6 +246,14 @@ const RecordingProvider = ({ children }) => {
             // Ending break
             setIsTakingBreak(false);
             setLastBreakEndTime(Date.now());
+
+            // reset flag so user can be alerted again after new break interval
+            alertedNoBreak2h.current = false;
+
+            // reset focus alert cooldowns so alerts can appear again after break
+            lastAlertFocus25.current = 0;
+            lastAlertFocus50.current = 0;
+
             addEvent('Break ended', 'info');
             console.log("Break ended. Resuming recording.");
         } else {
@@ -145,6 +261,10 @@ const RecordingProvider = ({ children }) => {
             setBreakTime(0);
             setIsTakingBreak(true);
             setLastBreakEndTime(0); // clear previous last-break timestamp while on break
+
+            // When starting a break, we don't want the "no-break" alert to remain active
+            alertedNoBreak2h.current = false;
+
             addEvent('Break started', 'info');
             console.log("Break started. Driving timer paused.");
         }
@@ -171,6 +291,10 @@ const RecordingProvider = ({ children }) => {
         setFaceCount,
         monitorStatus,
         setMonitorStatus,
+        // alerts
+        alerts,        // full history for the session
+        displayAlerts, // last 10 for UI
+        addAlert,
     };
 
     return (
