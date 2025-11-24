@@ -1,13 +1,59 @@
 import './App.css';
-import React, { useContext } from "react";
-import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
+import React from "react";
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
 import About from "./pages/About";
 import Stats from "./pages/Stats";
 import LiveFeed from "./components/LiveFeed";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import AlertsPopup from "./components/AlertsPopup";
-import { RecordingProvider, RecordingContext } from "./components/SessionRecording";
+import { Login, Register, AuthProvider, useAuth, RequireAuth } from './features/auth';
+
+function TopRightAuth() {
+    const auth = useAuth();
+
+    if (auth.user) {
+        return (
+            <div className="top-right-auth">
+                <span style={{ color: 'white', marginRight: 8 }}>{auth.user.email}</span>
+                <button className="auth-link" onClick={() => auth.logout()}>Logout</button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="top-right-auth">
+            <NavLink to="/login" className="auth-link">Sign in</NavLink>
+            <NavLink to="/register" className="auth-link">Sign up</NavLink>
+        </div>
+    );
+}
+
+function AppContent() {
+    return (
+        <>
+            <header>Welcome in Road Guard!</header>
+
+            <nav aria-label="Main menu">
+                <ul>
+                    <li><NavLink to="/about">About app</NavLink></li>
+                    <li><NavLink to="/roadguard">Use app</NavLink></li>
+                    <li><NavLink to="/stats">Statistics</NavLink></li>
+                </ul>
+            </nav>
+
+            <main>
+                <Routes>
+                    <Route path="/" element={<Navigate to="/roadguard" replace />} />
+                    <Route path="/about" element={<About />} />
+                    <Route path="/roadguard" element={
+                        <RequireAuth>
+                            <LiveFeed />
+                        </RequireAuth>
+                    } />
+                    <Route path="/stats" element={<Stats />} />
+                </Routes>
+            </main>
+        </>
+    );
+}
 
 function App() {
     const TestAlertButtons = () => {
@@ -22,41 +68,36 @@ function App() {
     }
 
     return (
-        <BrowserRouter>
-            <RecordingProvider>
-            <div className="App" style={{ backgroundColor: '#0e1319', paddingTop: '20px' }}>
-                <AlertsPopup />
+        <AuthProvider>
+            <BrowserRouter>
+                <InnerApp />
+            </BrowserRouter>
+        </AuthProvider>
+    );
+}
 
-                <TestAlertButtons />
+function InnerApp() {
+    const auth = useAuth();
 
-                <div className="top-right-auth">
-                    <NavLink to="/login" className="auth-link">Sign in</NavLink>
-                    <NavLink to="/register" className="auth-link">Sign up</NavLink>
-                </div>
+    return (
+        <div className="App" style={{ backgroundColor: '#0e1319', paddingTop: '20px' }}>
 
-                <header>Welcome in Road Guard!</header>
+            <TopRightAuth />
 
-                <nav aria-label="Main menu">
-                    <ul>
-                        <li><NavLink to="/about">About app</NavLink></li>
-                        <li><NavLink to="/roadguard">Use app</NavLink></li>
-                        <li><NavLink to="/stats">Statistics</NavLink></li>
-                    </ul>
-                </nav>
-
+            {auth.user ? (
+                <AppContent />
+            ) : (
                 <main>
                     <Routes>
-                        <Route path="/" element={<h2>Home page</h2>} />
-                        <Route path="/about" element={<About />} />
-                        <Route path="/roadguard" element={<LiveFeed />} />
-                        <Route path="/stats" element={<Stats />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
+                        <Route path="/" element={<Navigate to="/login" replace />} />
+                        <Route path="*" element={<Navigate to="/login" replace />} />
                     </Routes>
                 </main>
-            </div>
-            </RecordingProvider>
-        </BrowserRouter>
+            )}
+
+        </div>
     );
 }
 

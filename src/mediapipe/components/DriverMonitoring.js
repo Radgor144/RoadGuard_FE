@@ -70,12 +70,21 @@ export default function DriverMonitoring() {
     const earSamplesRef = useRef([]);
     const TOP_N_SAMPLES = 10;
 
+    const lastFocusAlertRef = useRef(false);
+    const lastFocusUpdateRef = useRef(0);
+
+    // Accumulators for EAR samples within the period
+    const sumEarRef = useRef(0);
+    const sampleCountRef = useRef(0);
+
     const onResults = useCallback((results) => {
         if (!results.image) return;
         const faces = results.multiFaceLandmarks || [];
         // update global face count and monitor status (without numeric count)
         setFaceCount && setFaceCount(faces.length);
         setMonitorStatus && setMonitorStatus(faces.length === 0 ? 'no face detected' : 'face detected');
+
+        const now = Date.now();
 
         const now = Date.now();
 

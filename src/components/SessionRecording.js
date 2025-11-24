@@ -107,7 +107,7 @@ const RecordingProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, [lastBreakEndTime]);
 
-    // Helper: add event to history (store full history, UI will limit visible portion)
+    // Event logging
     const addEvent = (message, type = 'info') => {
         const e = {
             id: Date.now() + Math.random(),

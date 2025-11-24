@@ -25,5 +25,3 @@ export const TirednessGauge = ({focusLevel}) => {
         marginInPercent={{top: 0.02, right: 0.02, bottom: 0.02, left: 0.02}}
     />);
 }
-
-
