@@ -12,7 +12,7 @@ export const TirednessGauge = ({focusLevel}) => {
                 {limit: 100, color: '#1b875e'}
             ]
         }}
-        pointer={{type: "needle", color: "#ffffff"}}
+        pointer={{type: "needle", color: "#ffffff", animationDuration: 1000}}
         labels={{
             valueLabel: {
                 formatTextValue: (v) => v + '%',
