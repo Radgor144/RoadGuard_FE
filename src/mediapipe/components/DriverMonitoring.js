@@ -62,9 +62,6 @@ export default function DriverMonitoring() {
 
     useWebSocket(latestEAR);
 
-    const lastFocusAlertRef = useRef(false);
-    const lastFocusUpdateRef = useRef(0);
-
     // Accumulators for EAR samples within the period
     // keep raw EAR samples for the current period; we'll take average of top N
     const earSamplesRef = useRef([]);
@@ -83,8 +80,6 @@ export default function DriverMonitoring() {
         // update global face count and monitor status (without numeric count)
         setFaceCount && setFaceCount(faces.length);
         setMonitorStatus && setMonitorStatus(faces.length === 0 ? 'no face detected' : 'face detected');
-
-        const now = Date.now();
 
         const now = Date.now();
 
