@@ -1,11 +1,11 @@
 import './App.css';
-import React, {useContext} from "react";
+import React from "react";
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
 import About from "./pages/About";
 import Stats from "./pages/Stats";
 import LiveFeed from "./components/LiveFeed";
 import { Login, Register, AuthProvider, useAuth, RequireAuth } from './features/auth';
-import {RecordingContext, RecordingProvider} from "./components/SessionRecording";
+import {RecordingProvider} from "./components/SessionRecording";
 import AlertsPopup from './components/AlertsPopup';
 
 function TopRightAuth() {
