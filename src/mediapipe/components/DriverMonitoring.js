@@ -56,7 +56,7 @@ export default function DriverMonitoring() {
     const webcamRef = useRef(null);
     const latestEAR = useRef(null);
 
-    const { addEvent, setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus } = useContext(RecordingContext);
+    const { setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus } = useContext(RecordingContext);
 
     const [landmarks, setLandmarks] = useState(null);
 
@@ -69,10 +69,6 @@ export default function DriverMonitoring() {
 
     const lastFocusAlertRef = useRef(false);
     const lastFocusUpdateRef = useRef(0);
-
-    // Accumulators for EAR samples within the period
-    const sumEarRef = useRef(0);
-    const sampleCountRef = useRef(0);
 
     const onResults = useCallback((results) => {
         if (!results.image) return;
@@ -134,7 +130,7 @@ export default function DriverMonitoring() {
 
                 // emit low-focus event only on updates (throttled)
                 if (focusPercentComputed < 50 && !lastFocusAlertRef.current) {
-                    addEvent && addEvent(`Focus level low: ${focusPercentComputed}%`, 'warning');
+                    // only update focusPercent here; RecordingProvider will decide when/how to add alerts
                     lastFocusAlertRef.current = true;
                 } else if (focusPercentComputed >= 50) {
                     lastFocusAlertRef.current = false;
@@ -152,7 +148,7 @@ export default function DriverMonitoring() {
             lastFocusUpdateRef.current = now;
             lastFocusAlertRef.current = false;
         }
-    }, [addEvent, setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus]);
+    }, [setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus]);
 
     const { startFaceMesh, isLoading } = useFaceMesh(webcamRef, onResults);
 

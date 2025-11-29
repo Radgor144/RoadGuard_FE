@@ -34,6 +34,25 @@ const AlertsPopup = () => {
         const audioEls = useRef({});
         // Track looping audio (by popup id) for MP3 elements (we store the actual Audio instance used for the loop)
         const audioLoopRefs = useRef({});
+        // track whether we've unlocked audio playback (some browsers block autoplay until user gesture)
+        const audioUnlocked = useRef(false);
+        const unlockAudio = () => {
+            if (audioUnlocked.current) return;
+            try {
+                Object.values(audioEls.current).forEach(base => {
+                    if (!base) return;
+                    const p = base.cloneNode(true);
+                    p.muted = true;
+                    p.play().then(() => { p.pause(); p.currentTime = 0; }).catch(() => {});
+                });
+                audioUnlocked.current = true;
+                window.removeEventListener('click', unlockAudio);
+                window.removeEventListener('keydown', unlockAudio);
+            } catch (e) {
+                // ignore
+            }
+        };
+
         // Preload Audio base elements (we'll clone for one-shots)
         useEffect(() => {
             Object.keys(AUDIO_FILES).forEach(key => {
@@ -46,9 +65,17 @@ const AlertsPopup = () => {
                     audioEls.current[key] = null;
                 }
             });
+            // try to unlock audio on first user gesture
+            window.addEventListener('click', unlockAudio);
+            window.addEventListener('keydown', unlockAudio);
+            // also allow programmatic attempts to unlock (e.g., when starting recording or test buttons)
+            window.addEventListener('rg:attemptAudioUnlock', unlockAudio);
             return () => {
                 Object.values(audioEls.current).forEach(a => { if (a && typeof a.pause === 'function') try { a.pause(); } catch (e) {} });
                 audioEls.current = {};
+                window.removeEventListener('click', unlockAudio);
+                window.removeEventListener('keydown', unlockAudio);
+                window.removeEventListener('rg:attemptAudioUnlock', unlockAudio);
             };
         }, []);
 
@@ -134,21 +161,16 @@ const AlertsPopup = () => {
             delete audioLoopRefs.current[id];
         };
 
-        // popups: { id, alert, visible: bool, closing: bool }
-        const [popups, setPopups] = useState([]);
-        // timers per id: { dismiss: timeoutId, remove: timeoutId }
-        const timers = useRef({});
-        const lastProcessed = useRef(0); // timestamp ms of last processed alert
-
-        // Initialize lastProcessed to the last existing alert timestamp on mount
+        // Simplified popup rendering strategy:
+        // - derive visible alerts from provider (last 10)
+        // - track hidden ids locally when user closes popups
+        // - auto-hide non-critical alerts after AUTO_DISMISS_MS
+        const [hiddenIds, setHiddenIds] = useState(new Set());
+        const hideTimers = useRef({});
+        const prevCentralId = useRef(null);
         const initialAnchor = useRef({bottom: 20, rightOffset: 20});
-        useEffect(() => {
-            if (alerts && alerts.length > 0) {
-                lastProcessed.current = alerts[alerts.length - 1].timestamp || Date.now();
-            } else {
-                lastProcessed.current = Date.now();
-            }
 
+        useEffect(() => {
             const computeAnchor = () => {
                 try {
                     const el = document.querySelector('.top-right-auth');
@@ -165,221 +187,147 @@ const AlertsPopup = () => {
                     initialAnchor.current.rightOffset = 20;
                 }
             };
-
             computeAnchor();
             window.addEventListener('resize', computeAnchor);
             window.addEventListener('scroll', computeAnchor);
-            return () => {
-                window.removeEventListener('resize', computeAnchor);
-                window.removeEventListener('scroll', computeAnchor);
-            };
-            // run only once on mount
+            return () => { window.removeEventListener('resize', computeAnchor); window.removeEventListener('scroll', computeAnchor); };
         }, []);
 
-        // When new alerts are appended to context.alerts, add only NEW alerts to local popups queue
+        // compute which alerts to render (last 10, newest first), excluding hidden
+        const visibleAlerts = (alerts || []).slice(-10).reverse().filter(a => !hiddenIds.has(a.id));
+
+        // when alerts change, schedule auto-hide timers for non-critical items and trigger audio/loops
         useEffect(() => {
-            if (!alerts || alerts.length === 0) return;
-            // find alerts with timestamp > lastProcessed
-            const newAlerts = alerts.filter(a => (a.timestamp || 0) > (lastProcessed.current || 0));
-            if (newAlerts.length === 0) return;
-            setPopups(prev => {
-                const existingIds = new Set(prev.map(p => p.id));
-                // create popup objects with visible=false initially
-                const toAdd = newAlerts.filter(a => !existingIds.has(a.id)).map(a => ({
-                    id: a.id,
-                    alert: a,
-                    visible: false,
-                    closing: false
-                }));
-                if (toAdd.length === 0) return prev;
-                // prepend so newest alerts appear closest to the anchor (index 0)
-                return [...toAdd, ...prev];
+            if (!alerts || alerts.length === 0) {
+                // clear timers and hidden state
+                Object.values(hideTimers.current).forEach(tid => clearTimeout(tid));
+                hideTimers.current = {};
+                setHiddenIds(new Set());
+                prevCentralId.current = null;
+                return;
+            }
+
+            const latest = (alerts || []).slice(-10).reverse();
+
+            // schedule auto-hide for non-critical alerts
+            latest.forEach(a => {
+                if (a.type === 'critical') return;
+                if (hideTimers.current[a.id]) return; // already scheduled
+                // auto-hide after AUTO_DISMISS_MS
+                hideTimers.current[a.id] = setTimeout(() => {
+                    setHiddenIds(s => new Set(Array.from(s).concat([a.id])));
+                    delete hideTimers.current[a.id];
+                }, AUTO_DISMISS_MS);
             });
-            // update lastProcessed to newest timestamp we've seen
-            lastProcessed.current = newAlerts[newAlerts.length - 1].timestamp || lastProcessed.current;
+
+            // determine central alert (critical preferred)
+            const centralCandidates = latest.filter(p => p.type === 'critical' || p.type === 'warning' || p.type === 'alert');
+            const criticals = centralCandidates.filter(c => c.type === 'critical');
+            const central = (criticals.length > 0 ? criticals[0] : centralCandidates[0]) || null;
+
+            // start/stop critical loop if central changed
+            if (prevCentralId.current !== (central ? central.id : null)) {
+                // stop previous
+                if (prevCentralId.current) stopLoop(prevCentralId.current);
+                // start new if critical
+                if (central && central.type === 'critical') {
+                    if (audioUnlocked.current) startCriticalLoop(central.id);
+                } else if (central && central.type && central.type !== 'critical') {
+                    // play one-shot for warnings/alerts
+                    if (audioUnlocked.current) playSound('warning');
+                }
+                prevCentralId.current = central ? central.id : null;
+            }
         }, [alerts]);
 
-        // Trigger enter animation: set visible=true for newly added popups (next tick)
-        useEffect(() => {
-            if (popups.length === 0) return;
-            const idsToShow = popups.filter(p => !p.visible && !p.closing).map(p => p.id);
-            if (idsToShow.length === 0) return;
-            // capture types to play sounds for those ids
-            const newPopups = popups.filter(p => idsToShow.includes(p.id));
-            // Determine which central popup will actually be displayed after this update
-            const centralCandidates = popups.filter(p => p.alert.type === 'critical' || p.alert.type === 'warning' || p.alert.type === 'alert');
-            const criticals = centralCandidates.filter(c => c.alert.type === 'critical');
-            const centralDisplayedId = (criticals.length > 0 ? criticals[0] : centralCandidates[0])?.id;
-
-            const t = setTimeout(() => {
-                setPopups(prev => prev.map(p => idsToShow.includes(p.id) ? { ...p, visible: true } : p));
-                // play sounds / start loops only for popups that will be visible
-                newPopups.forEach(np => {
-                    const tp = np.alert.type;
-                    if (tp === 'info') {
-                        // info are shown in corner
-                        playSound('warning');
-                    } else if (tp === 'critical' || tp === 'warning' || tp === 'alert') {
-                        // only play when this popup is the one actually displayed centrally
-                        if (np.id === centralDisplayedId) {
-                            if (tp === 'critical') {
-                                startCriticalLoop(np.id);
-                            } else {
-                                playSound('warning');
-                            }
-                        }
-                    }
-                });
-            }, 20);
-            return () => clearTimeout(t);
-        }, [popups]);
-
-        // Manage timeouts for auto-dismissable popups
-        useEffect(() => {
-            popups.forEach(p => {
-                const type = p.alert.type;
-                if (type === 'critical') return; // manual close only
-                // if already scheduled to dismiss or remove, skip
-                if (timers.current[p.id] && (timers.current[p.id].dismiss || timers.current[p.id].remove)) return;
-                // schedule dismiss -> set closing flag to trigger animation, then remove after TRANSITION_MS
-                const dismissId = setTimeout(() => {
-                    setPopups(current => current.map(x => x.id === p.id ? { ...x, closing: true } : x));
-                    // stop any looping sound immediately when closing starts
-                    stopLoop(p.id);
-                    // schedule actual removal after transition
-                    const removeId = setTimeout(() => {
-                        setPopups(current => current.filter(x => x.id !== p.id));
-                        // after DOM updates, ensure remaining popups are marked visible so they animate into place
-                        setTimeout(() => setPopups(curr => curr.map(q => ({ ...q, visible: true }))), 30);
-                        if (timers.current[p.id]) delete timers.current[p.id];
-                    }, TRANSITION_MS);
-                    timers.current[p.id] = { ...timers.current[p.id], remove: removeId };
-                }, AUTO_DISMISS_MS);
-                timers.current[p.id] = { ...(timers.current[p.id] || {}), dismiss: dismissId };
-            });
-
-            // cleanup on unmount
-            return () => {
-                Object.values(timers.current).forEach(obj => {
-                    if (!obj) return;
-                    if (obj.dismiss) clearTimeout(obj.dismiss);
-                    if (obj.remove) clearTimeout(obj.remove);
-                });
-                timers.current = {};
-            };
-        }, [popups]);
-
         const closePopup = (id) => {
-            // if there's a dismiss/remove scheduled, clear them
-            const t = timers.current[id];
-            if (t) {
-                if (t.dismiss) clearTimeout(t.dismiss);
-                if (t.remove) clearTimeout(t.remove);
-                delete timers.current[id];
+            // hide locally and clear any scheduled hide
+            setHiddenIds(s => new Set(Array.from(s).concat([id])));
+            if (hideTimers.current[id]) {
+                clearTimeout(hideTimers.current[id]);
+                delete hideTimers.current[id];
             }
-            // trigger closing animation first
-            setPopups(prev => prev.map(p => p.id === id ? { ...p, closing: true } : p));
-            // stop looping sound immediately
+            // ensure critical loop stops if closing the central critical
             stopLoop(id);
-            // remove after transition and recompute position
-            setTimeout(() => {
-                setPopups(prev => prev.filter(p => p.id !== id));
-                // ensure remaining popups animate to new positions
-                setTimeout(() => setPopups(curr => curr.map(q => ({ ...q, visible: true }))), 30);
-            }, TRANSITION_MS);
         }
 
-        if (!popups || popups.length === 0) return null;
+        if (!visibleAlerts || visibleAlerts.length === 0) return null;
 
         // split popups by placement
-        const infoPopups = popups.filter(p => p.alert.type === 'info');
-        const centerPopups = popups.filter(p => p.alert.type === 'warning' || p.alert.type === 'critical' || p.alert.type === 'alert');
+        const infoPopups = visibleAlerts.filter(p => p.type === 'info');
+        const centerPopups = visibleAlerts.filter(p => p.type === 'warning' || p.type === 'critical' || p.type === 'alert');
+        // If there is an active critical popup, show warnings/alerts in the corner (so critical remains central but warnings are still visible)
+        const criticals = centerPopups.filter(c => c.type === 'critical');
+        const nonCriticalCenter = centerPopups.filter(c => c.type !== 'critical');
+        const effectiveInfoPopups = criticals.length > 0 ? [...infoPopups, ...nonCriticalCenter] : infoPopups;
+        const effectiveCenterPopups = criticals.length > 0 ? criticals : centerPopups;
 
         // helper for style
         const baseStyle = {transition: `opacity ${TRANSITION_MS}ms ease, transform ${TRANSITION_MS}ms ease`};
 
+        // compute central once to simplify JSX
+        const central = effectiveCenterPopups[0] || null;
+
+        // Render
         return (
             <>
                 {/* Corner container for informational alerts */}
-                {infoPopups.length > 0 && (
-                    <>
-                        {(() => {
-                            const ITEM_HEIGHT = 72; // px per info popup (approx)
-                            const GAP = 10;
-                            // compute base position from stable initialAnchor
-                            const baseTop = initialAnchor.current.bottom || 20;
-                            const baseRight = initialAnchor.current.rightOffset || 20;
-                            return infoPopups.map((p, idx) => {
-                                const {alert, visible, closing} = p;
-                                const color = getColorForType(alert.type);
-                                // idx 0 is newest (we prepended) so position newest closest to baseTop
-                                const top = baseTop + idx * (ITEM_HEIGHT + GAP);
-                                const style = {
-                                    position: 'fixed',
-                                    top: top,
-                                    right: baseRight,
-                                    zIndex: 2000 + (infoPopups.length - idx),
-                                    minWidth: 320,
-                                    maxWidth: 420,
-                                    background: '#0b1220',
-                                    color: '#fff',
-                                    borderLeft: `4px solid ${color}`,
-                                    padding: '10px 12px',
-                                    borderRadius: 8,
-                                    boxShadow: '0 6px 18px rgba(2,6,23,0.6)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    textAlign: 'left',
-                                    opacity: closing ? 0 : (visible ? 1 : 0),
-                                    transform: closing ? 'translateY(-6px) scale(0.995)' : (visible ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(0.995)'),
-                                    ...baseStyle
-                                };
-                                return (
-                                    <div key={p.id} style={style}>
-                                        <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
-                                            <div style={{
-                                                fontWeight: 700,
-                                                color: '#e6eef8',
-                                                textAlign: 'left'
-                                            }}>{alert.message}</div>
-                                            <div style={{
-                                                fontSize: 12,
-                                                color: '#9aa6b2'
-                                            }}>{new Date(alert.timestamp).toLocaleTimeString()}</div>
-                                        </div>
-                                        <div style={{marginLeft: 12}}>
-                                            <button onClick={() => closePopup(p.id)} style={{
-                                                background: 'transparent',
-                                                border: 'none',
-                                                color: '#9aa6b2',
-                                                cursor: 'pointer'
-                                            }}>✕
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            });
-                        })()}
-                    </>
+                {effectiveInfoPopups.length > 0 && (
+                    effectiveInfoPopups.map((alertObj, idx) => {
+                        const ITEM_HEIGHT = 72;
+                        const GAP = 10;
+                        const baseTop = initialAnchor.current.bottom || 20;
+                        const baseRight = initialAnchor.current.rightOffset || 20;
+                        const top = baseTop + idx * (ITEM_HEIGHT + GAP);
+                        const color = getColorForType(alertObj.type);
+                        const style = {
+                            position: 'fixed',
+                            top,
+                            right: baseRight,
+                            zIndex: 2000 + (effectiveInfoPopups.length - idx),
+                            minWidth: 320,
+                            maxWidth: 420,
+                            background: '#0b1220',
+                            color: '#fff',
+                            borderLeft: `4px solid ${color}`,
+                            padding: '10px 12px',
+                            borderRadius: 8,
+                            boxShadow: '0 6px 18px rgba(2,6,23,0.6)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            textAlign: 'left',
+                            opacity: 1,
+                            transform: 'translateY(0) scale(1)',
+                            ...baseStyle
+                        };
+                        return (
+                            <div key={alertObj.id} style={style}>
+                                <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
+                                    <div style={{fontWeight: 700, color: '#e6eef8', textAlign: 'left'}}>{alertObj.message}</div>
+                                    <div style={{fontSize: 12, color: '#9aa6b2'}}>{new Date(alertObj.timestamp).toLocaleTimeString()}</div>
+                                </div>
+                                <div style={{marginLeft: 12}}>
+                                    <button onClick={() => closePopup(alertObj.id)} style={{background: 'transparent', border: 'none', color: '#9aa6b2', cursor: 'pointer'}}>✕</button>
+                                </div>
+                            </div>
+                        );
+                    })
                 )}
 
-                {/* Centered popups (warning/critical) positioned individually to avoid container reflow */}
-                {centerPopups.length > 0 && (() => {
-                    // If there's any critical central alert, show the newest critical first (override warnings)
-                    const criticals = centerPopups.filter(c => c.alert.type === 'critical');
-                    const p = criticals.length > 0 ? criticals[0] : centerPopups[0];
-                    const {alert, visible, closing} = p;
-                    const color = getColorForType(alert.type);
-                    const isCritical = alert.type === 'critical';
+                {/* Centered popups (warning/critical) */}
+                {central && (() => {
+                    const alertObj = central;
+                    const color = getColorForType(alertObj.type);
+                    const isCritical = alertObj.type === 'critical';
                     const ITEM_HEIGHT_CENTER = 96;
                     const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
                     const centerY = Math.round(viewportHeight / 2);
                     const top = centerY - Math.round(ITEM_HEIGHT_CENTER / 2);
-                    const z = isCritical ? 5000 : 4000; // critical gets higher z-index to override
+                    const z = isCritical ? 5000 : 4000;
                     const style = {
                         position: 'fixed',
-                        top: top,
+                        top,
                         left: '50%',
                         zIndex: z,
                         minWidth: 420,
@@ -394,46 +342,21 @@ const AlertsPopup = () => {
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         gap: 16,
-                        opacity: closing ? 0 : (visible ? 1 : 0),
-                        transform: closing ? 'translate(-50%, -8px) scale(0.995)' : 'translate(-50%, 0) scale(1)',
+                        transform: 'translate(-50%, 0) scale(1)',
                         ...baseStyle
                     };
                     return (
-                        <div key={p.id} style={style}>
-                            <div style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 6,
-                                textAlign: 'center',
-                                flex: 1
-                            }}>
-                                <div style={{fontWeight: 800, color: '#ffffff', fontSize: 18}}>{alert.message}</div>
-                                <div style={{
-                                    fontSize: 13,
-                                    color: '#9aa6b2'
-                                }}>{new Date(alert.timestamp).toLocaleTimeString()}</div>
+                        <div key={alertObj.id} style={style}>
+                            <div style={{display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'center', flex: 1}}>
+                                <div style={{fontWeight: 800, color: '#ffffff', fontSize: 18}}>{alertObj.message}</div>
+                                <div style={{fontSize: 13, color: '#9aa6b2'}}>{new Date(alertObj.timestamp).toLocaleTimeString()}</div>
                             </div>
                             <div style={{marginLeft: 12, display: 'flex', alignItems: 'center'}}>
                                 {!isCritical && (
-                                    <button onClick={() => closePopup(p.id)} style={{
-                                        background: 'transparent',
-                                        border: '1px solid rgba(255,255,255,0.08)',
-                                        color: '#fff',
-                                        cursor: 'pointer',
-                                        padding: '8px 10px',
-                                        borderRadius: 6
-                                    }}>Close</button>
+                                    <button onClick={() => closePopup(alertObj.id)} style={{background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', cursor: 'pointer', padding: '8px 10px', borderRadius: 6}}>Close</button>
                                 )}
                                 {isCritical && (
-                                    <button onClick={() => closePopup(p.id)} style={{
-                                        background: color,
-                                        border: 'none',
-                                        color: '#0b1220',
-                                        padding: '10px 14px',
-                                        borderRadius: 8,
-                                        cursor: 'pointer',
-                                        fontWeight: 800
-                                    }}>Dismiss</button>
+                                    <button onClick={() => closePopup(alertObj.id)} style={{background: color, border: 'none', color: '#0b1220', padding: '10px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 800}}>Dismiss</button>
                                 )}
                             </div>
                         </div>
@@ -442,7 +365,6 @@ const AlertsPopup = () => {
             </>
         );
     }
-;
 
 export default AlertsPopup;
 
