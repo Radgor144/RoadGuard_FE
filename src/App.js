@@ -14,7 +14,7 @@ function TopRightAuth() {
         return (
             <div className="top-right-auth">
                 <span style={{ color: 'white', marginRight: 8 }}>{auth.user.email}</span>
-                <button className="auth-link" onClick={() => auth.logout()}>Logout</button>
+                <button className="auth-link" id="logout_button" onClick={() => auth.logout()}>Logout</button>
             </div>
         );
     }
