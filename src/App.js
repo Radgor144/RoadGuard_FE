@@ -1,12 +1,13 @@
 import './App.css';
-import React, {useContext} from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
+import React from "react";
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
 import About from "./pages/About";
 import Stats from "./pages/Stats";
 import Home from "./pages/Home"
 import LiveFeed from "./components/LiveFeed";
 import { Login, Register, AuthProvider, useAuth, RequireAuth } from './features/auth';
-import {RecordingContext} from "./components/SessionRecording";
+import {RecordingProvider} from "./components/SessionRecording";
+import AlertsPopup from './components/AlertsPopup';
 
 function TopRightAuth() {
     const auth = useAuth();
@@ -63,22 +64,16 @@ function AppContent() {
 }
 
 function App() {
-    const TestAlertButtons = () => {
-        const { addAlert } = useContext(RecordingContext);
-        return (
-            <div style={{ position: 'fixed', left: 20, bottom: 20, zIndex: 2000, display: 'flex', gap: 8 }}>
-                <button onClick={() => addAlert('Test info alert', 'info')} style={{ padding: '6px 8px' }}>Test Info</button>
-                <button onClick={() => addAlert('Test warning alert', 'warning')} style={{ padding: '6px 8px' }}>Test Warn</button>
-                <button onClick={() => addAlert('Test critical alert', 'critical')} style={{ padding: '6px 8px', background: '#ef4444', color: '#fff' }}>Test Critical</button>
-            </div>
-        );
-    }
-
     return (
         <AuthProvider>
-            <BrowserRouter>
-                <InnerApp />
-            </BrowserRouter>
+            {/* Global RecordingProvider so all components share the same alerts/context */}
+            <RecordingProvider>
+                <BrowserRouter>
+                    <InnerApp />
+                    {/* AlertsPopup renders popups based on RecordingContext.alerts */}
+                    <AlertsPopup />
+                </BrowserRouter>
+            </RecordingProvider>
         </AuthProvider>
     );
 }
