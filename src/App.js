@@ -1,14 +1,20 @@
 import './App.css';
 import React, {useContext} from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import About from "./pages/About";
 import Stats from "./pages/Stats";
+import Home from "./pages/Home"
 import LiveFeed from "./components/LiveFeed";
 import { Login, Register, AuthProvider, useAuth, RequireAuth } from './features/auth';
 import {RecordingContext} from "./components/SessionRecording";
 
 function TopRightAuth() {
     const auth = useAuth();
+    const location = useLocation();
+
+    if (location.pathname === "/" || location.pathname === "/login" || location.pathname === "/register") {
+        return null;
+    }
 
     if (auth.user) {
         return (
@@ -90,10 +96,10 @@ function InnerApp() {
             ) : (
                 <main>
                     <Routes>
+                        <Route path="/" element={<Home />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
-                        <Route path="/" element={<Navigate to="/login" replace />} />
-                        <Route path="*" element={<Navigate to="/login" replace />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </main>
             )}
