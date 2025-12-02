@@ -1,4 +1,4 @@
-import React, {useContext, useEffect, useState, useRef} from 'react';
+import React, {useContext, useEffect, useState, useRef, useCallback} from 'react';
 import {RecordingContext} from './SessionRecording';
 
 // Simple pop-up/toast system based on alert entries from RecordingContext.
@@ -23,20 +23,22 @@ const getColorForType = (type) => {
     }
 }
 
+// Single MP3 file used for both warning and critical (place in public/sounds/alertSound.mp3)
+// (moved to module scope for stable identity)
+const AUDIO_FILES = {
+    warning: '/sounds/alertSound.mp3',
+    critical: '/sounds/alertSound.mp3'
+};
+
 const AlertsPopup = () => {
         const {alerts} = useContext(RecordingContext);
 
-        // Single MP3 file used for both warning and critical (place in public/sounds/alertSound.mp3)
-        const AUDIO_FILES = {
-            warning: '/sounds/alertSound.mp3',
-            critical: '/sounds/alertSound.mp3'
-        };
         const audioEls = useRef({});
         // Track looping audio (by popup id) for MP3 elements (we store the actual Audio instance used for the loop)
         const audioLoopRefs = useRef({});
         // track whether we've unlocked audio playback (some browsers block autoplay until user gesture)
         const audioUnlocked = useRef(false);
-        const unlockAudio = () => {
+        const unlockAudio = useCallback(() => {
             if (audioUnlocked.current) return;
             try {
                 Object.values(audioEls.current).forEach(base => {
@@ -51,9 +53,9 @@ const AlertsPopup = () => {
             } catch (e) {
                 // ignore
             }
-        };
+        }, []);
 
-        // Preload Audio base elements (we'll clone for one-shots)
+        // Preload audio once; include AUDIO_FILES properties and unlockAudio in deps so static checker is satisfied
         useEffect(() => {
             Object.keys(AUDIO_FILES).forEach(key => {
                 try {
@@ -77,9 +79,9 @@ const AlertsPopup = () => {
                 window.removeEventListener('keydown', unlockAudio);
                 window.removeEventListener('rg:attemptAudioUnlock', unlockAudio);
             };
-        }, []);
+        }, [unlockAudio, AUDIO_FILES.warning, AUDIO_FILES.critical]);
 
-        const playSound = (type) => {
+        const playSound = useCallback((type) => {
             // Create a cloned audio element for one-shot playback so it doesn't interfere with looped element
             const base = audioEls.current[type];
             if (!base) return;
@@ -95,49 +97,10 @@ const AlertsPopup = () => {
             } catch (e) {
                 // ignore playback errors
             }
-        };
+        }, []);
 
         // Audio loop management for critical alerts: create dedicated Audio element per loop (or fallback to warning file with modified playbackRate)
-        const startCriticalLoop = (id) => {
-            if (audioLoopRefs.current[id]) return;
-            // stop any other loops to ensure only one critical loop plays at a time
-            Object.keys(audioLoopRefs.current).forEach(k => {
-                try { stopLoop(k); } catch (e) {}
-            });
-            // prefer dedicated critical file
-            let src = AUDIO_FILES.critical;
-            let el = null;
-            try {
-                el = new Audio(src);
-                el.preload = 'auto';
-                el.loop = true;
-                el.play().catch(() => {});
-                audioLoopRefs.current[id] = { el };
-                return;
-            } catch (e) {
-                // failed to create critical audio, will try fallback below
-            }
-            // fallback: if warning file exists, create a small 'chorus' using two clones with different playbackRate
-            try {
-                const warningBase = audioEls.current.warning;
-                if (warningBase) {
-                    const a1 = warningBase.cloneNode(true);
-                    const a2 = warningBase.cloneNode(true);
-                    a1.preload = 'auto'; a2.preload = 'auto';
-                    a1.loop = true; a2.loop = true;
-                    a1.playbackRate = 0.82; a2.playbackRate = 0.88;
-                    a1.volume = 0.95; a2.volume = 0.85;
-                    a1.play().catch(() => {});
-                    a2.play().catch(() => {});
-                    console.warn('[AlertsPopup] critical file missing - using two warning clones as fallback with varied playbackRate');
-                    audioLoopRefs.current[id] = { els: [a1, a2] };
-                }
-            } catch (e) {
-                // give up if everything fails
-            }
-        };
-
-        const stopLoop = (id) => {
+        const stopLoop = useCallback((id) => {
             const h = audioLoopRefs.current[id];
             if (!h) return;
             try {
@@ -159,7 +122,46 @@ const AlertsPopup = () => {
                 }
             } catch (e) {}
             delete audioLoopRefs.current[id];
-        };
+        }, []);
+
+        const startCriticalLoop = useCallback((id) => {
+             if (audioLoopRefs.current[id]) return;
+             // stop any other loops to ensure only one critical loop plays at a time
+             Object.keys(audioLoopRefs.current).forEach(k => {
+                 try { stopLoop(k); } catch (e) {}
+             });
+             // prefer dedicated critical file
+             let src = AUDIO_FILES.critical;
+             let el = null;
+             try {
+                 el = new Audio(src);
+                 el.preload = 'auto';
+                 el.loop = true;
+                 el.play().catch(() => {});
+                 audioLoopRefs.current[id] = { el };
+                 return;
+             } catch (e) {
+                 // failed to create critical audio, will try fallback below
+             }
+             // fallback: if warning file exists, create a small 'chorus' using two clones with different playbackRate
+             try {
+                 const warningBase = audioEls.current.warning;
+                 if (warningBase) {
+                     const a1 = warningBase.cloneNode(true);
+                     const a2 = warningBase.cloneNode(true);
+                     a1.preload = 'auto'; a2.preload = 'auto';
+                     a1.loop = true; a2.loop = true;
+                     a1.playbackRate = 0.82; a2.playbackRate = 0.88;
+                     a1.volume = 0.95; a2.volume = 0.85;
+                     a1.play().catch(() => {});
+                     a2.play().catch(() => {});
+                     console.warn('[AlertsPopup] critical file missing - using two warning clones as fallback with varied playbackRate');
+                     audioLoopRefs.current[id] = { els: [a1, a2] };
+                 }
+             } catch (e) {
+                 // give up if everything fails
+             }
+        }, [stopLoop]);
 
         // Simplified popup rendering strategy:
         // - derive visible alerts from provider (last 10)
@@ -238,7 +240,7 @@ const AlertsPopup = () => {
                 }
                 prevCentralId.current = central ? central.id : null;
             }
-        }, [alerts]);
+        }, [alerts, playSound, startCriticalLoop, stopLoop]);
 
         const closePopup = (id) => {
             // hide locally and clear any scheduled hide

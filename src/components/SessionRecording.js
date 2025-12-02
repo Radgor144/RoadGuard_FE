@@ -1,5 +1,6 @@
-import React, {useEffect, useState, useContext, createContext, useRef} from "react";
+import React, {useEffect, useState, useContext, createContext, useRef, useCallback} from "react";
 import './SessionRecording.css'
+import { useWebSocket } from '../mediapipe/hooks/useWebSocket';
 
 const formatTime = (totalSeconds) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -50,6 +51,8 @@ const RecordingProvider = ({ children }) => {
     const [currentEAR, setCurrentEAR] = useState(null);
     const [faceCount, setFaceCount] = useState(0);
     const [monitorStatus, setMonitorStatus] = useState('idle');
+    // latest EAR ref used for sending to WS
+    const latestEARRef = useRef(null);
 
     // Alerts state (store full history for the session)
     const [alerts, setAlerts] = useState([]);
@@ -109,7 +112,7 @@ const RecordingProvider = ({ children }) => {
     }, [lastBreakEndTime]);
 
     // Event logging
-    const addEvent = (message, type = 'info', force = false) => {
+    const addEvent = useCallback((message, type = 'info', force = false) => {
         // Only record events when a driving session is active and not on break,
         // unless force==true (used for logging start/stop actions)
         if ((!isRecording || isTakingBreak) && !force) {
@@ -127,10 +130,10 @@ const RecordingProvider = ({ children }) => {
         // UI limits visible area to ~10 items via max-height
         setEventHistory(prev => [e, ...prev]);
         console.log('Event:', message);
-    };
+    }, [isRecording, isTakingBreak]);
 
     // Helper: add alert (store full history; UI will slice last 10)
-    const addAlert = (message, type = 'warning', force = false) => {
+    const addAlert = useCallback((message, type = 'warning', force = false) => {
         // Only create alerts when a driving session is active and not on break
         // unless force===true (used for developer/test triggers)
         if ((!isRecording || isTakingBreak) && !force) {
@@ -150,7 +153,7 @@ const RecordingProvider = ({ children }) => {
         // mirror entire alert into eventHistory without slicing so full history is preserved
         setEventHistory(prev => [{...a, message: a.message, type: a.type, timestamp: a.timestamp, id: a.id}, ...prev]);
         console.log(`Alert (${type}):`, message);
-    };
+    }, [isRecording, isTakingBreak]);
 
     // Derived: alerts to display (last 10, newest first)
     const displayAlerts = alerts.slice(-10).reverse();
@@ -187,7 +190,7 @@ const RecordingProvider = ({ children }) => {
         }
 
         prevFocusRef.current = fp;
-    }, [focusPercent, isRecording, isTakingBreak]);
+    }, [focusPercent, isRecording, isTakingBreak, addAlert]);
 
     // Monitor driving session length (4 hours)
     useEffect(() => {
@@ -197,7 +200,7 @@ const RecordingProvider = ({ children }) => {
             addAlert('Attention: Driving session exceeded 4 hours', 'alert');
             alertedSession4h.current = true;
         }
-    }, [elapsedTime, isRecording]);
+    }, [elapsedTime, isRecording, addAlert]);
 
     // Monitor time since last break (>2 hours)
     useEffect(() => {
@@ -207,7 +210,7 @@ const RecordingProvider = ({ children }) => {
             addAlert('Attention: More than 2 hours since last break', 'alert');
             alertedNoBreak2h.current = true;
         }
-    }, [timeSinceLastBreak, isRecording]);
+    }, [timeSinceLastBreak, isRecording, addAlert]);
 
     // Event logging helpers (start/stop/reset) and alert reset management
     const toggleRecording = () => {
@@ -255,8 +258,6 @@ const RecordingProvider = ({ children }) => {
             setEventHistory(prev => [{...a, id: a.id}, ...prev]);
             // attempt to unlock audio (some browsers require a gesture) by firing a custom event listeners may catch
             try { window.dispatchEvent(new Event('rg:attemptAudioUnlock')); } catch (e) { /* ignore */ }
-            // and also record the event in event history (already mirrored above)
-            addEvent('Driving started', 'info', true);
             // keep lastBreakEndTime/timeSinceLastBreak as-is
         }
         console.log(isRecording ? "Stopping Recording..." : "Starting Recording...");
@@ -280,7 +281,6 @@ const RecordingProvider = ({ children }) => {
             lastAlertFocus25.current = 0;
             lastAlertFocus50.current = 0;
 
-            addEvent('Break ended', 'info');
             // show user a corner/info alert for break ended
             addAlert('Break ended', 'info', true);
             console.log("Break ended. Resuming recording.");
@@ -293,12 +293,20 @@ const RecordingProvider = ({ children }) => {
             // When starting a break, we don't want the "no-break" alert to remain active
             alertedNoBreak2h.current = false;
 
-            addEvent('Break started', 'info');
             // show user a corner/info alert for break started
             addAlert('Break started', 'info', true);
             console.log("Break started. Driving timer paused.");
         }
     };
+
+    // keep latestEARRef in sync with currentEAR for websocket publishing
+    useEffect(() => {
+        latestEARRef.current = currentEAR;
+    }, [currentEAR]);
+
+    // Enable websocket only when recording and not on break
+    const wsEnabled = isRecording && !isTakingBreak;
+    const { isConnected: wsConnected } = useWebSocket(latestEARRef, wsEnabled);
 
     const contextValue = {
         isRecording,
@@ -325,6 +333,8 @@ const RecordingProvider = ({ children }) => {
         alerts,        // full history for the session
         displayAlerts, // last 10 for UI
         addAlert,
+        // websocket status
+        wsConnected,
     };
 
     return (
@@ -385,12 +395,16 @@ const BreakButton = () => {
 
 export const SystemStatus = () => {
     const { isRecording } = useContext(RecordingContext);
+    const { wsConnected } = useContext(RecordingContext);
     const statusText = isRecording ? "Status: Recording Active" : "Status: Ready to Start";
     const statusClass = isRecording ? "system-status-active" : "system-status-required";
 
     return (
         <div className={`system-status-container ${statusClass}`}>
             <p className="size font-bold text-center">{statusText}</p>
+            <div style={{marginTop: 6, textAlign: 'center'}}>
+                <span style={{fontSize: 12, color: wsConnected ? '#34d399' : '#f97316'}}>{wsConnected ? 'WS: connected' : 'WS: disconnected'}</span>
+            </div>
         </div>
     );
 };

@@ -3,9 +3,8 @@ import React, {useCallback, useRef, useState, useContext} from 'react';
 import Webcam from 'react-webcam';
 import {calculateEAR} from '../utils/calculateEAR';
 import {useFaceMesh} from '../hooks/useFaceMesh';
-import {useWebSocket} from '../hooks/useWebSocket';
-import CanvasOverlay from './CanvasOverlay';
 import { RecordingContext } from '../../components/SessionRecording';
+import CanvasOverlay from "./CanvasOverlay";
 
 const EAR_THRESHOLD = 0.2; // immediate eye-closed alert threshold
 const FOCUS_UPDATE_INTERVAL = 2000; // ms
@@ -60,7 +59,7 @@ export default function DriverMonitoring() {
 
     const [landmarks, setLandmarks] = useState(null);
 
-    useWebSocket(latestEAR);
+    // latestEAR stored locally for debugging; websocket handled in RecordingProvider
 
     // Accumulators for EAR samples within the period
     // keep raw EAR samples for the current period; we'll take average of top N
