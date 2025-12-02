@@ -1,5 +1,6 @@
-import React, {useEffect, useState, useContext, createContext, useRef} from "react";
+import React, {useEffect, useState, useContext, createContext, useRef, useCallback} from "react";
 import './SessionRecording.css'
+import { useWebSocket } from '../mediapipe/hooks/useWebSocket';
 
 const formatTime = (totalSeconds) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -27,6 +28,7 @@ const RecordingContext = createContext({
     timeSinceLastBreak: 0,
     eventHistory: [],
     addEvent: () => {},
+    addAlert: () => {}, // added safe default to avoid "addAlert is not a function" when consumer renders outside provider
     focusPercent: 100,
     setFocusPercent: () => {},
 });
@@ -49,6 +51,8 @@ const RecordingProvider = ({ children }) => {
     const [currentEAR, setCurrentEAR] = useState(null);
     const [faceCount, setFaceCount] = useState(0);
     const [monitorStatus, setMonitorStatus] = useState('idle');
+    // latest EAR ref used for sending to WS
+    const latestEARRef = useRef(null);
 
     // Alerts state (store full history for the session)
     const [alerts, setAlerts] = useState([]);
@@ -61,7 +65,7 @@ const RecordingProvider = ({ children }) => {
     const alertedNoBreak2h = useRef(false);
 
     // Cooldown (seconds) for focus alerts to allow them to reappear periodically
-    const FOCUS_ALERT_COOLDOWN = 60; // seconds
+    const FOCUS_ALERT_COOLDOWN = 30; // seconds
 
     // Keep last focus for comparison (optional)
     const prevFocusRef = useRef(null);
@@ -108,7 +112,14 @@ const RecordingProvider = ({ children }) => {
     }, [lastBreakEndTime]);
 
     // Event logging
-    const addEvent = (message, type = 'info') => {
+    const addEvent = useCallback((message, type = 'info', force = false) => {
+        // Only record events when a driving session is active and not on break,
+        // unless force==true (used for logging start/stop actions)
+        if ((!isRecording || isTakingBreak) && !force) {
+            console.log('Ignored event (recording inactive or on break):', message);
+            return;
+        }
+
         const e = {
             id: Date.now() + Math.random(),
             timestamp: Date.now(),
@@ -119,10 +130,17 @@ const RecordingProvider = ({ children }) => {
         // UI limits visible area to ~10 items via max-height
         setEventHistory(prev => [e, ...prev]);
         console.log('Event:', message);
-    };
+    }, [isRecording, isTakingBreak]);
 
     // Helper: add alert (store full history; UI will slice last 10)
-    const addAlert = (message, type = 'warning') => {
+    const addAlert = useCallback((message, type = 'warning', force = false) => {
+        // Only create alerts when a driving session is active and not on break
+        // unless force===true (used for developer/test triggers)
+        if ((!isRecording || isTakingBreak) && !force) {
+            console.log('Ignored alert (recording inactive or on break):', message);
+            return;
+        }
+
         const a = {
             id: Date.now() + Math.random(),
             timestamp: Date.now(),
@@ -134,8 +152,8 @@ const RecordingProvider = ({ children }) => {
         // also mirror into event history so user sees recent alerts in EventHistory (keep recent 10 there)
         // mirror entire alert into eventHistory without slicing so full history is preserved
         setEventHistory(prev => [{...a, message: a.message, type: a.type, timestamp: a.timestamp, id: a.id}, ...prev]);
-        console.log('Alert:', message);
-    };
+        console.log(`Alert (${type}):`, message);
+    }, [isRecording, isTakingBreak]);
 
     // Derived: alerts to display (last 10, newest first)
     const displayAlerts = alerts.slice(-10).reverse();
@@ -172,7 +190,7 @@ const RecordingProvider = ({ children }) => {
         }
 
         prevFocusRef.current = fp;
-    }, [focusPercent, isRecording, isTakingBreak]);
+    }, [focusPercent, isRecording, isTakingBreak, addAlert]);
 
     // Monitor driving session length (4 hours)
     useEffect(() => {
@@ -182,7 +200,7 @@ const RecordingProvider = ({ children }) => {
             addAlert('Attention: Driving session exceeded 4 hours', 'alert');
             alertedSession4h.current = true;
         }
-    }, [elapsedTime, isRecording]);
+    }, [elapsedTime, isRecording, addAlert]);
 
     // Monitor time since last break (>2 hours)
     useEffect(() => {
@@ -192,7 +210,7 @@ const RecordingProvider = ({ children }) => {
             addAlert('Attention: More than 2 hours since last break', 'alert');
             alertedNoBreak2h.current = true;
         }
-    }, [timeSinceLastBreak, isRecording]);
+    }, [timeSinceLastBreak, isRecording, addAlert]);
 
     // Event logging helpers (start/stop/reset) and alert reset management
     const toggleRecording = () => {
@@ -213,7 +231,7 @@ const RecordingProvider = ({ children }) => {
             alertedSession4h.current = false;
             alertedNoBreak2h.current = false;
 
-            addEvent('Driving ended', 'info');
+            addAlert('Driving ended', 'info', true);
         } else {
             // Start recording
             setElapsedTime(0);
@@ -227,10 +245,19 @@ const RecordingProvider = ({ children }) => {
             alertedSession4h.current = false;
             alertedNoBreak2h.current = false;
 
-            // reset full alerts history for the new driving session
-            setAlerts([]);
-
-            addEvent('Driving started', 'info');
+            // reset full alerts history for the new driving session and immediately add the driving-started info alert
+            const a = {
+                id: Date.now() + Math.random(),
+                timestamp: Date.now(),
+                message: 'Driving started',
+                type: 'info'
+            };
+            // set alerts to only contain the new start alert (avoid race with setAlerts([]) + addAlert)
+            setAlerts([a]);
+            // also add to event history
+            setEventHistory(prev => [{...a, id: a.id}, ...prev]);
+            // attempt to unlock audio (some browsers require a gesture) by firing a custom event listeners may catch
+            try { window.dispatchEvent(new Event('rg:attemptAudioUnlock')); } catch (e) { /* ignore */ }
             // keep lastBreakEndTime/timeSinceLastBreak as-is
         }
         console.log(isRecording ? "Stopping Recording..." : "Starting Recording...");
@@ -254,7 +281,8 @@ const RecordingProvider = ({ children }) => {
             lastAlertFocus25.current = 0;
             lastAlertFocus50.current = 0;
 
-            addEvent('Break ended', 'info');
+            // show user a corner/info alert for break ended
+            addAlert('Break ended', 'info', true);
             console.log("Break ended. Resuming recording.");
         } else {
             // Starting break
@@ -265,10 +293,20 @@ const RecordingProvider = ({ children }) => {
             // When starting a break, we don't want the "no-break" alert to remain active
             alertedNoBreak2h.current = false;
 
-            addEvent('Break started', 'info');
+            // show user a corner/info alert for break started
+            addAlert('Break started', 'info', true);
             console.log("Break started. Driving timer paused.");
         }
     };
+
+    // keep latestEARRef in sync with currentEAR for websocket publishing
+    useEffect(() => {
+        latestEARRef.current = currentEAR;
+    }, [currentEAR]);
+
+    // Enable websocket only when recording and not on break
+    const wsEnabled = isRecording && !isTakingBreak;
+    const { isConnected: wsConnected } = useWebSocket(latestEARRef, wsEnabled);
 
     const contextValue = {
         isRecording,
@@ -295,6 +333,8 @@ const RecordingProvider = ({ children }) => {
         alerts,        // full history for the session
         displayAlerts, // last 10 for UI
         addAlert,
+        // websocket status
+        wsConnected,
     };
 
     return (
@@ -355,48 +395,27 @@ const BreakButton = () => {
 
 export const SystemStatus = () => {
     const { isRecording } = useContext(RecordingContext);
+    const { wsConnected } = useContext(RecordingContext);
     const statusText = isRecording ? "Status: Recording Active" : "Status: Ready to Start";
     const statusClass = isRecording ? "system-status-active" : "system-status-required";
 
     return (
         <div className={`system-status-container ${statusClass}`}>
             <p className="size font-bold text-center">{statusText}</p>
+            <div style={{marginTop: 6, textAlign: 'center'}}>
+                <span style={{fontSize: 12, color: wsConnected ? '#34d399' : '#f97316'}}>{wsConnected ? 'WS: connected' : 'WS: disconnected'}</span>
+            </div>
         </div>
     );
 };
 
-const RecordingIndicator = () => {
-    const { isRecording, isTakingBreak, elapsedTime, breakTime } = useContext(RecordingContext);
-
-    if (!isRecording) {
-        return <div className="indicator-standby">No active session.</div>;
-    }
-
-    const indicatorClass = isTakingBreak ? 'indicator-break-session' : 'indicator-active-session';
-    const dotClass = isTakingBreak ? 'dot-break' : 'dot-active';
-
-    return (
-        <div className={`indicator-base ${indicatorClass}`}>
-            <div className="indicator-header">
-                <span className={`indicator-dot animate-pulse ${dotClass}`}></span>
-                <span className="indicator-title">
-                    {isTakingBreak ? "SESSION PAUSED (BREAK)" : "LIVE DRIVING SESSION"}
-                </span>
-            </div>
-            <p className="indicator-details">
-                Driving Time: <span className="time-value">{formatTime(elapsedTime)}</span> |
-                Break Time: <span className="time-value">{formatTime(breakTime)}</span>
-            </p>
-        </div>
-    );
-}
+// RecordingIndicator removed (was unused) to avoid linter warning. If you need it, re-add and import where used.
 
 export {
     RecordingContext,
     RecordingProvider,
     RecordingButton,
     BreakButton,
-    RecordingIndicator,
     formatTime,
     formatClock,
 };

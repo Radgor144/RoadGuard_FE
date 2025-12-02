@@ -36,3 +36,5 @@ copilotDiffState.xml
 .vscode/
 *.code-workspace
 
+# Environment variables file
+.env

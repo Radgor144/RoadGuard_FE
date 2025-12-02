@@ -3,9 +3,8 @@ import React, {useCallback, useRef, useState, useContext} from 'react';
 import Webcam from 'react-webcam';
 import {calculateEAR} from '../utils/calculateEAR';
 import {useFaceMesh} from '../hooks/useFaceMesh';
-import {useWebSocket} from '../hooks/useWebSocket';
-import CanvasOverlay from './CanvasOverlay';
 import { RecordingContext } from '../../components/SessionRecording';
+import CanvasOverlay from "./CanvasOverlay";
 
 const EAR_THRESHOLD = 0.2; // immediate eye-closed alert threshold
 const FOCUS_UPDATE_INTERVAL = 2000; // ms
@@ -56,11 +55,11 @@ export default function DriverMonitoring() {
     const webcamRef = useRef(null);
     const latestEAR = useRef(null);
 
-    const { addEvent, setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus } = useContext(RecordingContext);
+    const { setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus } = useContext(RecordingContext);
 
     const [landmarks, setLandmarks] = useState(null);
 
-    useWebSocket(latestEAR);
+    // latestEAR stored locally for debugging; websocket handled in RecordingProvider
 
     // Accumulators for EAR samples within the period
     // keep raw EAR samples for the current period; we'll take average of top N
@@ -69,10 +68,6 @@ export default function DriverMonitoring() {
 
     const lastFocusAlertRef = useRef(false);
     const lastFocusUpdateRef = useRef(0);
-
-    // Accumulators for EAR samples within the period
-    const sumEarRef = useRef(0);
-    const sampleCountRef = useRef(0);
 
     const onResults = useCallback((results) => {
         if (!results.image) return;
@@ -134,7 +129,7 @@ export default function DriverMonitoring() {
 
                 // emit low-focus event only on updates (throttled)
                 if (focusPercentComputed < 50 && !lastFocusAlertRef.current) {
-                    addEvent && addEvent(`Focus level low: ${focusPercentComputed}%`, 'warning');
+                    // only update focusPercent here; RecordingProvider will decide when/how to add alerts
                     lastFocusAlertRef.current = true;
                 } else if (focusPercentComputed >= 50) {
                     lastFocusAlertRef.current = false;
@@ -152,7 +147,7 @@ export default function DriverMonitoring() {
             lastFocusUpdateRef.current = now;
             lastFocusAlertRef.current = false;
         }
-    }, [addEvent, setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus]);
+    }, [setFocusPercent, setCurrentEAR, setFaceCount, setMonitorStatus]);
 
     const { startFaceMesh, isLoading } = useFaceMesh(webcamRef, onResults);
 

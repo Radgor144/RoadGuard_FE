@@ -1,7 +1,6 @@
 import React, {} from 'react';
 import DriverMonitoring from "../mediapipe/components/DriverMonitoring";
 import {
-    RecordingProvider,
     RecordingButton,
     BreakButton,
     RecordingContext,
@@ -95,11 +94,8 @@ export const LiveFeed = () => {
         );
     };
 
-    return (
-        <RecordingProvider>
-            <Content/>
-        </RecordingProvider>
-    );
+    // Use the global RecordingProvider (provided at App level)
+    return <Content />;
 };
 
 export default LiveFeed;
