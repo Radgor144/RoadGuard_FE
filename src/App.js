@@ -1,6 +1,6 @@
 import './App.css';
 import React from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import About from "./pages/About";
 import Stats from "./pages/Stats";
 import Home from "./pages/Home"
