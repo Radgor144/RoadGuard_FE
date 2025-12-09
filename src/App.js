@@ -1,8 +1,9 @@
 import './App.css';
 import React from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import About from "./pages/About";
 import Stats from "./pages/Stats";
+import Home from "./pages/Home"
 import LiveFeed from "./components/LiveFeed";
 import { Login, Register, AuthProvider, useAuth, RequireAuth } from './features/auth';
 import {RecordingProvider} from "./components/SessionRecording";
@@ -10,12 +11,17 @@ import AlertsPopup from './components/AlertsPopup';
 
 function TopRightAuth() {
     const auth = useAuth();
+    const location = useLocation();
+
+    if (location.pathname === "/" || location.pathname === "/login" || location.pathname === "/register") {
+        return null;
+    }
 
     if (auth.user) {
         return (
             <div className="top-right-auth">
                 <span style={{ color: 'white', marginRight: 8 }}>{auth.user.email}</span>
-                <button className="auth-link" onClick={() => auth.logout()}>Logout</button>
+                <button className="auth-link" id="logout_button" onClick={() => auth.logout()}>Logout</button>
             </div>
         );
     }
@@ -85,10 +91,10 @@ function InnerApp() {
             ) : (
                 <main>
                     <Routes>
+                        <Route path="/" element={<Home />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
-                        <Route path="/" element={<Navigate to="/login" replace />} />
-                        <Route path="*" element={<Navigate to="/login" replace />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </main>
             )}

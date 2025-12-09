@@ -102,18 +102,17 @@ export const useWebSocket = (latestEARRef, enabled = false, token = null, driver
             const client = clientRef.current;
             if (client && client.connected && latestEARRef && latestEARRef.current !== null) {
                 const message = {
-                    driverId,
+                    driverId: '63a27a59-e8f0-4e03-a4f3-f27f853888f9',
                     ear: latestEARRef.current
                 };
                 try {
                     client.publish({
                         destination: '/app/ear-data',
                         body: JSON.stringify(message),
-                        headers: {'content-type': 'application/json', Authorization: `Bearer ${token}`}
+                        headers: {'content-type': 'application/json'}
                     });
                 } catch (e) {
                     // swallow publish errors
-                    console.warn('EAR publish failed', e);
                 }
             }
         }, SEND_INTERVAL_MS);
