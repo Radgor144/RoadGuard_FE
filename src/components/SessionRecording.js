@@ -1,6 +1,7 @@
 import React, {useEffect, useState, useContext, createContext, useRef, useCallback} from "react";
 import './SessionRecording.css'
 import { useWebSocket } from '../mediapipe/hooks/useWebSocket';
+import { useAuth } from '../features/auth/context/AuthContext';
 
 const formatTime = (totalSeconds) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -213,9 +214,57 @@ const RecordingProvider = ({ children }) => {
     }, [timeSinceLastBreak, isRecording, addAlert]);
 
     // Event logging helpers (start/stop/reset) and alert reset management
-    const toggleRecording = () => {
+    const toggleRecording = async () => {
         if (isRecording) {
             // Stop recording
+            // Send POST to backend to signal end of trip
+            try {
+                const token = authToken || localStorage.getItem('rg_token');
+                console.log('toggleRecording: token present=', !!token);
+
+                const payload = {
+                    driverId,
+                    timestamp: new Date().toISOString(),
+                    elapsedTime,
+                    ear: latestEARRef.current ?? currentEAR
+                };
+
+                const res = await fetch('http://localhost:8082/api/endTrip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const text = await res.text().catch(() => '');
+                    console.warn('endTrip POST failed', res.status, text);
+                } else {
+                    console.log('endTrip POST successful');
+                }
+            } catch (e) {
+                console.warn('Failed to POST endTrip', e);
+            }
+
+            // attempt to send END_DRIVING via WS if connected
+            try {
+                if (typeof sendEndDriving === 'function') {
+                    const sent = sendEndDriving({elapsedTime, ear: latestEARRef.current ?? currentEAR});
+                    console.log('sendEndDriving via WS sent=', sent);
+                }
+            } catch (e) {
+                console.warn('sendEndDriving failed', e);
+            }
+
+            // disconnect websocket when session ends
+            try {
+                if (typeof wsDisconnect === 'function') await wsDisconnect();
+            } catch (e) {
+                console.warn('WS disconnect failed', e);
+            }
+
             setIsRecording(false);
             if (isTakingBreak) setIsTakingBreak(false);
             setBreakTime(0);
@@ -234,6 +283,16 @@ const RecordingProvider = ({ children }) => {
             addAlert('Driving ended', 'info', true);
         } else {
             // Start recording
+            // try to establish WS connection before marking recording active
+            const connected = await (wsConnect ? wsConnect(5000) : Promise.resolve(false));
+            console.log('toggleRecording: wsConnect result=', connected);
+            if (!connected) {
+                // If websocket cannot connect, block starting the driving session and inform user
+                addAlert('Cannot start driving: real-time monitor unavailable (WebSocket connect failed)', 'warning', true);
+                console.warn('WebSocket connect failed; aborting start of recording');
+                return;
+            }
+
             setElapsedTime(0);
             setIsRecording(true);
             const now = Date.now();
@@ -306,7 +365,49 @@ const RecordingProvider = ({ children }) => {
 
     // Enable websocket only when recording and not on break
     const wsEnabled = isRecording && !isTakingBreak;
-    const { isConnected: wsConnected } = useWebSocket(latestEARRef, wsEnabled);
+    // read token/driverId from localStorage (no dependency on auth context required)
+    const auth = useAuth();
+    const [authToken, setAuthToken] = useState(() => localStorage.getItem('rg_token'));
+    useEffect(() => {
+        // update token when auth.user changes (login/logout)
+        const newToken = localStorage.getItem('rg_token');
+        setAuthToken(newToken);
+        console.log('SessionRecording: authToken updated ->', !!newToken, newToken ? newToken.slice(0,8) + '...' : null);
+
+        const onAuthChanged = () => {
+            const nt = localStorage.getItem('rg_token');
+            setAuthToken(nt);
+            console.log('SessionRecording: rg:auth-changed fired, authToken ->', !!nt);
+        };
+        const onStorage = (e) => {
+            if (e.key === 'rg_token' || e.key === 'rg_current_user') {
+                const nt = localStorage.getItem('rg_token');
+                setAuthToken(nt);
+                console.log('SessionRecording: storage event, authToken ->', !!nt);
+            }
+        };
+
+        window.addEventListener('rg:auth-changed', onAuthChanged);
+        window.addEventListener('storage', onStorage);
+        return () => {
+            window.removeEventListener('rg:auth-changed', onAuthChanged);
+            window.removeEventListener('storage', onStorage);
+        };
+    }, [auth?.user]);
+
+    let driverId = null;
+    try {
+        const raw = localStorage.getItem('rg_current_user');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            driverId = parsed?.email || null;
+        }
+    } catch (e) {
+        driverId = null;
+    }
+
+    console.log('SessionRecording: calling useWebSocket with enabled=', wsEnabled, 'token present=', !!authToken, 'driverId=', driverId);
+    const { isConnected: wsConnected, connect: wsConnect, disconnect: wsDisconnect, sendEndDriving } = useWebSocket(latestEARRef, wsEnabled, authToken, driverId);
 
     const contextValue = {
         isRecording,
