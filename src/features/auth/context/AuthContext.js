@@ -22,11 +22,27 @@ const handleAuthResponse = async (res) => {
 };
 
 const saveAuthData = (email, data) => {
-    const token = data.accessToken || data.token;
-    if (!token) throw new Error('No access token returned');
+    // log returned keys for debugging
+    try {
+        const keys = data && typeof data === 'object' ? Object.keys(data).join(',') : String(data);
+        console.log('Auth: saveAuthData response keys ->', keys);
+    } catch (e) {
+        // ignore
+    }
+
+    const token = data.accessToken || data.token || data.access_token || data.jwt;
+    if (!token) {
+        console.warn('Auth: no token found in response', data);
+        throw new Error('No access token returned');
+    }
+
+    // mask token for logs
+    try { console.log('Auth: saving token ->', token ? token.slice(0,8) + '...' : null); } catch(e){}
 
     localStorage.setItem('rg_token', token);
     localStorage.setItem('rg_current_user', JSON.stringify({ email }));
+    // notify other parts of app
+    try { window.dispatchEvent(new Event('rg:auth-changed')); } catch (e) { /* ignore */ }
     return { email };
 };
 
@@ -56,6 +72,8 @@ export function AuthProvider({ children }) {
             const data = await handleAuthResponse(res);
             const currentUser = saveAuthData(credentials.email, data);
             setUser(currentUser);
+            // notify other parts of app about user change
+            try { window.dispatchEvent(new Event('rg:auth-changed')); } catch (e) { /* ignore */ }
             return data;
         } catch (err) {
             console.error(`Auth error:`, err);
@@ -70,6 +88,7 @@ export function AuthProvider({ children }) {
         localStorage.removeItem('rg_current_user');
         localStorage.removeItem('rg_token');
         setUser(null);
+        try { window.dispatchEvent(new Event('rg:auth-changed')); } catch (e) { /* ignore */ }
     };
 
     return (
@@ -93,4 +112,3 @@ export function RequireAuth({ children }) {
 
     return children;
 }
-
