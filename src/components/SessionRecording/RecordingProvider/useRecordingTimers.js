@@ -43,17 +43,30 @@ export const useRecordingTimers = () => {
     // 3. Time since last break timer (timeSinceLastBreak)
     useEffect(() => {
         let interval = null;
-        if (lastBreakEndTime > 0) {
+        // Update only while recording; this freezes the "Last Break" display after stop
+        if (lastBreakEndTime > 0 && isRecording) {
             const update = () => {
                 setTimeSinceLastBreak(Math.floor((Date.now() - lastBreakEndTime) / 1000));
             };
             update();
             interval = setInterval(update, 1000);
         } else {
-            setTimeSinceLastBreak(0);
+            setTimeSinceLastBreak(prev => prev || 0);
         }
         return () => clearInterval(interval);
-    }, [lastBreakEndTime]);
+    }, [lastBreakEndTime, isRecording]);
+
+    // reset all timers/lists related to the current driving session
+    const resetTimers = () => {
+        setIsRecording(false);
+        setIsTakingBreak(false);
+        setElapsedTime(0);
+        setBreakTime(0);
+        currentBreakStartRef.current = null;
+        setBreaksList([]);
+        // do not reset startTime or lastBreakEndTime to allow "Current Status" to remain frozen
+        setTimeSinceLastBreak(prev => prev || 0);
+    };
 
     return {
         isRecording, setIsRecording,
@@ -65,5 +78,6 @@ export const useRecordingTimers = () => {
         timeSinceLastBreak, setTimeSinceLastBreak,
         currentBreakStartRef,
         breaksList, setBreaksList,
+        resetTimers,
     };
 };

@@ -20,6 +20,16 @@ export const useAlertsAndEvents = (
     const alertedSession4h = useRef(false);
     const alertedNoBreak2h = useRef(false);
 
+    // reset alerts and history
+    const resetSessionHistory = useCallback(() => {
+        setEventHistory([]);
+        setAlerts([]);
+        lastAlertFocus50.current = 0;
+        lastAlertFocus25.current = 0;
+        alertedSession4h.current = false;
+        alertedNoBreak2h.current = false;
+    }, []);
+
     // event logging
     const addEvent = useCallback((message, type = 'info', force = false) => {
         if ((!isRecording || isTakingBreak) && !force) {
@@ -114,5 +124,6 @@ export const useAlertsAndEvents = (
         alerts,
         displayAlerts,
         addAlert,
+        resetSessionHistory,
     };
 };

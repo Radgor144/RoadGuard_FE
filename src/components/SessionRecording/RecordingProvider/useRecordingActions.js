@@ -11,9 +11,9 @@ export const useRecordingActions = (
         isRecording, isTakingBreak, startTime, currentBreakStartRef, breaksList
     } = state;
     const {
-        setIsRecording, setIsTakingBreak, setBreakTime, setStartTime, setLastBreakEndTime, setBreaksList
+        setIsRecording, setIsTakingBreak, setBreakTime, setStartTime, setLastBreakEndTime, setBreaksList, setElapsedTime
     } = actions;
-    const { addAlert } = alertActions;
+    const { addAlert, resetSessionHistory } = alertActions;
 
     const { wsConnect, authToken, driverId } = wsData;
 
@@ -79,6 +79,11 @@ export const useRecordingActions = (
             setBreakTime(0);
             currentBreakStartRef.current = null;
             setLastBreakEndTime(0);
+            //setStartTime(0);
+            setElapsedTime(0);
+            setBreaksList([]);
+            resetSessionHistory();
+
         } else {
             // Start recording
             console.info('toggleRecording: attempting to start recording, trying WS connect...');
@@ -99,7 +104,7 @@ export const useRecordingActions = (
             currentBreakStartRef.current = null;
             setLastBreakEndTime(now); // Reset time since last break (to start counting up)
         }
-    }, [isRecording, isTakingBreak, breaksList, startTime, authToken, wsConnect, setBreaksList, setIsRecording, setIsTakingBreak, setBreakTime, setStartTime, setLastBreakEndTime, addAlert, currentBreakStartRef.current]);
+    }, [isRecording, isTakingBreak, breaksList, startTime, authToken, wsConnect, setBreaksList, setIsRecording, setIsTakingBreak, setBreakTime, setStartTime, setLastBreakEndTime, addAlert, currentBreakStartRef.current, resetSessionHistory, setElapsedTime]);
 
 
     const toggleBreak = useCallback(() => {

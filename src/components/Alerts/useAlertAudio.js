@@ -1,131 +1,135 @@
-// useAlertAudio.js
-import {useRef, useEffect, useCallback} from 'react';
-import {AUDIO_FILES} from './AlertConstants';
+import { useEffect, useRef, useCallback } from 'react';
+import { AUDIO_FILES } from './AlertConstants';
+
+const ALERT_URL = AUDIO_FILES.warning;
 
 export const useAlertAudio = () => {
-    const audioEls = useRef({});
-    const audioLoopRefs = useRef({});
-    const audioUnlocked = useRef(false);
+    const audioCtxRef = useRef(null);
+    const unlockedRef = useRef(false);
+    const bufferRef = useRef(null);
+    const loopSourcesRef = useRef({});
 
-    const unlockAudio = useCallback(() => {
-        if (audioUnlocked.current) return;
-        try {
-            Object.values(audioEls.current).forEach(base => {
-                if (!base) return;
-                const p = base.cloneNode(true);
-                p.muted = true;
-                p.play().then(() => {
-                    p.pause();
-                    p.currentTime = 0;
-                }).catch(() => {
-                });
-            });
-            audioUnlocked.current = true;
-            window.removeEventListener('click', unlockAudio);
-            window.removeEventListener('keydown', unlockAudio);
-        } catch (e) {
-            // ignore
+    const createContext = useCallback(() => {
+        if (!audioCtxRef.current) {
+            audioCtxRef.current = new window.AudioContext();
         }
-    }, [unlockAudio]);
+        return audioCtxRef.current;
+    }, []);
 
-    useEffect(() => {
-        Object.keys(AUDIO_FILES).forEach(key => {
-            try {
-                const a = new Audio(AUDIO_FILES[key]);
-                a.preload = 'auto';
-                audioEls.current[key] = a;
-            } catch (e) {
-                audioEls.current[key] = null;
+    const loadSound = useCallback(async () => {
+        if (bufferRef.current) return bufferRef.current;
+        const ctx = createContext();
+        try {
+            const res = await fetch(ALERT_URL);
+            const arrayBuffer = await res.arrayBuffer();
+            const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+            bufferRef.current = audioBuffer;
+            return audioBuffer;
+        } catch (err) {
+            console.warn(`useAlertAudio: loadSound error for ${ALERT_URL}`, err);
+            return null;
+        }
+    }, [createContext]);
+
+    const unlockAudio = useCallback(async () => {
+        if (unlockedRef.current) return true;
+        const ctx = createContext();
+        try {
+            if (ctx.state === 'suspended') {
+                await ctx.resume();
             }
+            unlockedRef.current = true;
+            return true;
+        } catch (err) {
+            console.warn('useAlertAudio: unlockAudio failed', err);
+            return false;
+        }
+    }, [createContext]);
+
+    // Single play
+    const playSound = useCallback(async (type) => {
+        const buffer = await loadSound();
+        const ok = await unlockAudio();
+
+        if (!ok || !buffer) return;
+
+        const ctx = audioCtxRef.current;
+        try {
+            const src = ctx.createBufferSource();
+            src.buffer = buffer;
+            src.connect(ctx.destination);
+            src.start(0);
+
+            // stop after 8s to avoid leaks
+            setTimeout(() => {
+                try { src.stop(); } catch (e) {}
+            }, 8000);
+
+        } catch (err) {
+            console.warn('useAlertAudio: play error', err);
+        }
+    }, [loadSound, unlockAudio]);
+
+    const stopLoop = useCallback((id) => {
+        const src = loopSourcesRef.current[id];
+        if (src) {
+            try {
+                src.stop();
+                src.disconnect();
+            } catch (e) {
+                console.warn('useAlertAudio: stopLoop failed', e);
+            }
+            delete loopSourcesRef.current[id];
+        }
+    }, []);
+
+    // Loop start
+    const startCriticalLoop = useCallback(async (id) => {
+        Object.keys(loopSourcesRef.current).forEach(k => {
+            try { stopLoop(k); } catch (e) {}
         });
+
+        const buffer = await loadSound();
+        const ok = await unlockAudio();
+
+        if (!ok || !buffer) return;
+
+        const ctx = audioCtxRef.current;
+        try {
+            const src = ctx.createBufferSource();
+            src.buffer = buffer;
+            src.loop = true;
+            src.connect(ctx.destination);
+            src.start(0);
+
+            loopSourcesRef.current[id] = src;
+
+        } catch (err) {
+            console.error('useAlertAudio: failed to start critical loop.', err);
+        }
+    }, [loadSound, unlockAudio, stopLoop]);
+
+    // preload and unlock on interaction
+    useEffect(() => {
+        loadSound();
+
         window.addEventListener('click', unlockAudio);
         window.addEventListener('keydown', unlockAudio);
         window.addEventListener('rg:attemptAudioUnlock', unlockAudio);
+
         return () => {
-            Object.values(audioEls.current).forEach(a => {
-                if (a && typeof a.pause === 'function') try {
-                    a.pause();
-                } catch (e) {
-                }
-            });
-            audioEls.current = {};
+            audioCtxRef.current?.close();
+            audioCtxRef.current = null;
+            bufferRef.current = null;
+            unlockedRef.current = false;
+
             window.removeEventListener('click', unlockAudio);
             window.removeEventListener('keydown', unlockAudio);
             window.removeEventListener('rg:attemptAudioUnlock', unlockAudio);
         };
-    }, [unlockAudio]);
+    }, [unlockAudio, loadSound]);
 
-    const playSound = useCallback((type) => {
-        const base = audioEls.current[type];
-        if (!base) return;
-        try {
-            const a = base.cloneNode(true);
-            a.preload = 'auto';
-            const cleanup = () => {
-                try {
-                    a.pause();
-                    a.src = '';
-                } catch (e) {
-                }
-            };
-            a.addEventListener('ended', cleanup);
-            a.play().catch(() => { /* autoplay blocked or error */
-            });
-            setTimeout(cleanup, 8000);
-        } catch (e) {
-            // ignore playback errors
-        }
-    }, []);
-
-    const stopLoop = useCallback((id) => {
-        const h = audioLoopRefs.current[id];
-        if (!h) return;
-        try {
-            if (h.el) {
-                h.el.loop = false;
-                h.el.pause();
-                h.el.currentTime = 0;
-                try {
-                    h.el.src = '';
-                } catch (e) {
-                }
-            } else if (Array.isArray(h.els)) {
-                h.els.forEach(el => {
-                    if (el) {
-                        el.loop = false;
-                        el.pause();
-                        el.currentTime = 0;
-                        try {
-                            el.src = '';
-                        } catch (e) {
-                        }
-                    }
-                });
-            }
-        } catch (e) {
-        }
-        delete audioLoopRefs.current[id];
-    }, []);
-
-    const startCriticalLoop = useCallback((id) => {
-        if (audioLoopRefs.current[id]) return;
-        // stop any other loops to ensure only one critical loop plays at a time
-        Object.keys(audioLoopRefs.current).forEach(k => {
-            try {
-                stopLoop(k);
-            } catch (e) {
-            }
-        });
-        let src = AUDIO_FILES.critical;
-        let el;
-        el = new Audio(src);
-        el.preload = 'auto';
-        el.loop = true;
-        el.play().catch(() => {
-        });
-        audioLoopRefs.current[id] = {el};
-
-    }, [stopLoop]);
-
-    return {playSound, stopLoop, startCriticalLoop, audioUnlocked: audioUnlocked.current};
+    return { playSound, stopLoop, startCriticalLoop, audioUnlocked: unlockedRef.current };
 };
+
+export default useAlertAudio;

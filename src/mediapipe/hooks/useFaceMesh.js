@@ -72,7 +72,7 @@ export function useFaceMesh(webcamRef, onResults) {
             setStatus('camera start error');
             setIsLoading(false);
         }
-    }, [webcamRef, onResults]);
+    }, [onResults, webcamRef.current?.video]);
 
     useEffect(() => {
         return () => {

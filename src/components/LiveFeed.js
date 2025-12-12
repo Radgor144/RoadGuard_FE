@@ -1,5 +1,5 @@
 import React, {} from 'react';
-import DriverMonitoring from "../mediapipe/components/DriverMonitoring";
+import DriverMonitoring from "../mediapipe/components/DriverMonitoring/DriverMonitoring";
 import {
     RecordingButton,
     BreakButton,
