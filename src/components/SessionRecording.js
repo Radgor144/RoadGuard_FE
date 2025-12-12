@@ -18,6 +18,13 @@ const formatClock = (timestamp) => {
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
+const toISO = (v) => {
+    if (v === null || v === undefined) return undefined;
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return undefined;
+    return d.toISOString();
+};
+
 const RecordingContext = createContext({
     isRecording: false,
     elapsedTime: 0,
@@ -54,6 +61,10 @@ const RecordingProvider = ({ children }) => {
     const [monitorStatus, setMonitorStatus] = useState('idle');
     // latest EAR ref used for sending to WS
     const latestEARRef = useRef(null);
+
+    // breaks tracking: list of {start:number, end:number}
+    const [breaksList, setBreaksList] = useState([]);
+    const currentBreakStartRef = useRef(null);
 
     // Alerts state (store full history for the session)
     const [alerts, setAlerts] = useState([]);
@@ -215,19 +226,39 @@ const RecordingProvider = ({ children }) => {
 
     // Event logging helpers (start/stop/reset) and alert reset management
     const toggleRecording = async () => {
+        console.info('toggleRecording: invoked, isRecording=', isRecording);
+
         if (isRecording) {
             // Stop recording
-            // Send POST to backend to signal end of trip
             try {
                 const token = authToken || localStorage.getItem('rg_token');
-                console.log('toggleRecording: token present=', !!token);
+                console.debug('toggleRecording: token present=', !!token);
+
+                const nowMs = Date.now();
+                let finalBreaks = Array.isArray(breaksList) ? breaksList.slice() : [];
+
+                // jeśli przerwa w toku -> capture start i dopisz tylko gdy start jest prawidłowy
+                if (isTakingBreak) {
+                    const start = currentBreakStartRef.current;
+                    if (start) {
+                        console.info('toggleRecording: finalizing in-progress break, start=', start, 'end=', nowMs);
+                        finalBreaks = [...finalBreaks, { start, end: nowMs }];
+                        currentBreakStartRef.current = null;
+                        setBreaksList(finalBreaks);
+                    } else {
+                        console.warn('toggleRecording: in-progress break had no start timestamp');
+                    }
+                }
+
+                console.debug('toggleRecording: Final breaks to send:', finalBreaks);
 
                 const payload = {
-                    driverId,
-                    timestamp: new Date().toISOString(),
-                    elapsedTime,
-                    ear: latestEARRef.current ?? currentEAR
+                    startTime: toISO(startTime),
+                    endTime: toISO(nowMs),
+                    breaks: finalBreaks.map(b => ({ start: toISO(b.start), end: toISO(b.end) })),
                 };
+
+                console.debug('toggleRecording: payload prepared', payload);
 
                 const res = await fetch('http://localhost:8082/api/endTrip', {
                     method: 'POST',
@@ -240,56 +271,33 @@ const RecordingProvider = ({ children }) => {
 
                 if (!res.ok) {
                     const text = await res.text().catch(() => '');
-                    console.warn('endTrip POST failed', res.status, text);
+                    console.warn('toggleRecording: endTrip POST failed', res.status, text);
                 } else {
-                    console.log('endTrip POST successful');
+                    console.info('toggleRecording: endTrip POST successful');
                 }
             } catch (e) {
-                console.warn('Failed to POST endTrip', e);
+                console.error('toggleRecording: Failed to POST endTrip', e);
             }
 
-            // attempt to send END_DRIVING via WS if connected
-            try {
-                if (typeof sendEndDriving === 'function') {
-                    const sent = sendEndDriving({elapsedTime, ear: latestEARRef.current ?? currentEAR});
-                    console.log('sendEndDriving via WS sent=', sent);
-                }
-            } catch (e) {
-                console.warn('sendEndDriving failed', e);
-            }
+            console.info('toggleRecording: finishing stop flow, resetting state');
 
-            // disconnect websocket when session ends
-            try {
-                if (typeof wsDisconnect === 'function') await wsDisconnect();
-            } catch (e) {
-                console.warn('WS disconnect failed', e);
-            }
-
+            // Reset local session state so UI stops recording and timers stop
             setIsRecording(false);
-            if (isTakingBreak) setIsTakingBreak(false);
+            setIsTakingBreak(false);
             setBreakTime(0);
-            setStartTime(0);
-
-            // Reset last break info when driving session ends
+            currentBreakStartRef.current = null;
             setLastBreakEndTime(0);
-            setTimeSinceLastBreak(0);
+            // keep event/alerts history but clear session-specific timestamps
+            // setStartTime(0);
 
-            // reset alert flags for next session
-            lastAlertFocus25.current = 0;
-            lastAlertFocus50.current = 0;
-            alertedSession4h.current = false;
-            alertedNoBreak2h.current = false;
-
-            addAlert('Driving ended', 'info', true);
         } else {
             // Start recording
-            // try to establish WS connection before marking recording active
+            console.info('toggleRecording: attempting to start recording, trying WS connect...');
             const connected = await (wsConnect ? wsConnect(5000) : Promise.resolve(false));
-            console.log('toggleRecording: wsConnect result=', connected);
+            console.info('toggleRecording: wsConnect result=', connected);
             if (!connected) {
-                // If websocket cannot connect, block starting the driving session and inform user
                 addAlert('Cannot start driving: real-time monitor unavailable (WebSocket connect failed)', 'warning', true);
-                console.warn('WebSocket connect failed; aborting start of recording');
+                console.warn('toggleRecording: WebSocket connect failed; aborting start of recording');
                 return;
             }
 
@@ -297,64 +305,48 @@ const RecordingProvider = ({ children }) => {
             setIsRecording(true);
             const now = Date.now();
             setStartTime(now);
+            console.info('toggleRecording: session started, startTime=', now);
+            setBreaksList([]);
+            currentBreakStartRef.current = null;
 
-            // reset alert flags on new session
-            lastAlertFocus25.current = 0;
-            lastAlertFocus50.current = 0;
-            alertedSession4h.current = false;
-            alertedNoBreak2h.current = false;
-
-            // reset full alerts history for the new driving session and immediately add the driving-started info alert
-            const a = {
-                id: Date.now() + Math.random(),
-                timestamp: Date.now(),
-                message: 'Driving started',
-                type: 'info'
-            };
-            // set alerts to only contain the new start alert (avoid race with setAlerts([]) + addAlert)
-            setAlerts([a]);
-            // also add to event history
-            setEventHistory(prev => [{...a, id: a.id}, ...prev]);
-            // attempt to unlock audio (some browsers require a gesture) by firing a custom event listeners may catch
-            try { window.dispatchEvent(new Event('rg:attemptAudioUnlock')); } catch (e) { /* ignore */ }
-            // keep lastBreakEndTime/timeSinceLastBreak as-is
+            // ...
         }
-        console.log(isRecording ? "Stopping Recording..." : "Starting Recording...");
     };
 
+// toggleBreak: dodane logi przy starcie i zakończeniu przerwy oraz przy dopisaniu do breaksList
     const toggleBreak = () => {
         if (!isRecording) {
-            console.log("Cannot start break: Recording is not active.");
+            console.warn('toggleBreak: cannot toggle break, recording not active');
             return;
         }
 
         if (isTakingBreak) {
             // Ending break
             setIsTakingBreak(false);
-            setLastBreakEndTime(Date.now());
-
-            // reset flag so user can be alerted again after new break interval
-            alertedNoBreak2h.current = false;
-
-            // reset focus alert cooldowns so alerts can appear again after break
-            lastAlertFocus25.current = 0;
-            lastAlertFocus50.current = 0;
-
-            // show user a corner/info alert for break ended
-            addAlert('Break ended', 'info', true);
-            console.log("Break ended. Resuming recording.");
+            const end = Date.now();
+            const start = currentBreakStartRef.current;
+            if (start) {
+                setBreaksList(prev => {
+                    const next = [...prev, { start, end }];
+                    console.info('toggleBreak: appended break', { start, end });
+                    return next;
+                });
+                currentBreakStartRef.current = null;
+                setLastBreakEndTime(end);
+                console.info('toggleBreak: break ended at', end);
+                addAlert('Break ended', 'info', true);
+            } else {
+                console.warn('toggleBreak: no start timestamp — not appending break');
+            }
         } else {
             // Starting break
             setBreakTime(0);
+            const start = Date.now();
+            currentBreakStartRef.current = start;
             setIsTakingBreak(true);
-            setLastBreakEndTime(0); // clear previous last-break timestamp while on break
-
-            // When starting a break, we don't want the "no-break" alert to remain active
-            alertedNoBreak2h.current = false;
-
-            // show user a corner/info alert for break started
+            setLastBreakEndTime(0);
+            console.info('toggleBreak: break started at', start);
             addAlert('Break started', 'info', true);
-            console.log("Break started. Driving timer paused.");
         }
     };
 

@@ -7,7 +7,7 @@ import Home from "./pages/Home"
 import LiveFeed from "./components/LiveFeed";
 import { Login, Register, AuthProvider, useAuth, RequireAuth } from './features/auth';
 import {RecordingProvider} from "./components/SessionRecording";
-import AlertsPopup from './components/AlertsPopup';
+import AlertsPopup from "./components/Alerts/AlertsPopup";
 
 function TopRightAuth() {
     const auth = useAuth();

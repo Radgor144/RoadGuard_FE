@@ -1,5 +1,5 @@
 import React, {useContext, useEffect, useState, useRef, useCallback} from 'react';
-import {RecordingContext} from './SessionRecording';
+import {RecordingContext} from '../src/components/SessionRecording';
 
 // Simple pop-up/toast system based on alert entries from RecordingContext.
 // - Critical alerts (type === 'critical') require manual close.
