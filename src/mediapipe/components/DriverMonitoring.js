@@ -3,7 +3,7 @@ import React, {useCallback, useRef, useState, useContext} from 'react';
 import Webcam from 'react-webcam';
 import {calculateEAR} from '../utils/calculateEAR';
 import {useFaceMesh} from '../hooks/useFaceMesh';
-import { RecordingContext } from '../../components/SessionRecording';
+import { RecordingContext } from '../../components/SessionRecording/SessionRecording';
 import CanvasOverlay from "./CanvasOverlay";
 
 const EAR_THRESHOLD = 0.2; // immediate eye-closed alert threshold
