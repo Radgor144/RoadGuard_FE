@@ -7,7 +7,7 @@ import {
     formatTime,
     SystemStatus,
     formatClock
-} from "./SessionRecording";
+} from "./SessionRecording/SessionRecording";
 import EventHistory from "./EventHistory";
 import {TirednessGauge} from "./TirednessGauge";
 import RealtimeData from './RealtimeData';

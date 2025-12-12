@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { RecordingContext, formatClock } from "./SessionRecording";
+import { RecordingContext, formatClock } from "./SessionRecording/SessionRecording";
 
 export const EventHistory = () => {
     const { eventHistory } = useContext(RecordingContext);

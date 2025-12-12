@@ -1,5 +1,5 @@
-import React, {useContext, useEffect, useState, useRef, useCallback} from 'react';
-import {RecordingContext} from '../SessionRecording';
+import React, {useContext, useEffect, useState, useRef} from 'react';
+import {RecordingContext} from '../SessionRecording/SessionRecording';
 import { useAlertAudio } from './useAlertAudio';
 import CornerAlert from './CornerAlert';
 import CenterAlert from './CenterAlert';
@@ -14,7 +14,7 @@ const AlertsPopup = () => {
     const prevCentralId = useRef(null);
     const initialAnchor = useRef({bottom: 20, rightOffset: 20});
 
-    // Logika pozycjonowania
+    // positioning calculation
     useEffect(() => {
         const computeAnchor = () => {
             try {
@@ -49,7 +49,7 @@ const AlertsPopup = () => {
         stopLoop(id);
     }
 
-    // Efekt zarządzający auto-ukrywaniem i dźwiękiem
+    // autohide and sound logic
     useEffect(() => {
         if (!alerts || alerts.length === 0) {
             // clear timers and hidden state
@@ -63,7 +63,7 @@ const AlertsPopup = () => {
 
         const latest = (alerts || []).slice(-10).reverse();
 
-        // 1. Harmonogram auto-ukrywania
+        // autohide logic
         latest.forEach(a => {
             if (a.type === 'critical') return;
             if (hideTimers.current[a.id]) return; // already scheduled
@@ -74,7 +74,7 @@ const AlertsPopup = () => {
             }, AUTO_DISMISS_MS);
         });
 
-        // 2. Logika centralnego alertu i dźwięku
+        // alert and sound logic
         const centralCandidates = latest.filter(p => p.type === 'critical' || p.type === 'warning' || p.type === 'alert');
         const criticals = centralCandidates.filter(c => c.type === 'critical');
         const central = (criticals.length > 0 ? criticals[0] : centralCandidates[0]) || null;
@@ -99,7 +99,7 @@ const AlertsPopup = () => {
 
     if (!visibleAlerts || visibleAlerts.length === 0) return null;
 
-    // Logika podziału na Corner/Center
+    // corner vs center logic
     const infoPopups = visibleAlerts.filter(p => p.type === 'info');
     const centerPopups = visibleAlerts.filter(p => p.type === 'warning' || p.type === 'critical' || p.type === 'alert');
     // If there is an active critical popup, show warnings/alerts in the corner (so critical remains central but warnings are still visible)
@@ -110,16 +110,14 @@ const AlertsPopup = () => {
 
     const central = effectiveCenterPopups[0] || null;
 
-    // Stałe do pozycjonowania w rogu
+    // constants for positioning
     const ITEM_HEIGHT = 72;
     const GAP = 10;
     const baseTop = initialAnchor.current.bottom || 20;
     const baseRight = initialAnchor.current.rightOffset || 20;
 
-    // Renderowanie
     return (
         <>
-            {/* Corner container for informational alerts */}
             {effectiveInfoPopups.length > 0 && (
                 effectiveInfoPopups.map((alertObj, idx) => {
                     const top = baseTop + idx * (ITEM_HEIGHT + GAP);
@@ -134,7 +132,6 @@ const AlertsPopup = () => {
                 })
             )}
 
-            {/* Centered popups (warning/critical) */}
             {central && <CenterAlert alertObj={central} closePopup={closePopup} />}
         </>
     );

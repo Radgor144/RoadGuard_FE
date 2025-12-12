@@ -1,5 +1,5 @@
 import React from 'react';
-import { RecordingContext } from './SessionRecording';
+import { RecordingContext } from './SessionRecording/SessionRecording';
 
 // IMPORTANT: keep these thresholds in sync with DriverMonitoring
 const EAR_LEVEL_WARN = 0.27; // pomarańcz
