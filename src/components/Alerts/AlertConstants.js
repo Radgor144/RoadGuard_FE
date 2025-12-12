@@ -17,6 +17,5 @@ export const getColorForType = (type) => {
 }
 
 export const AUDIO_FILES = {
-    warning: '/sounds/alertSound.mp3',
-    critical: '/sounds/alertSound.mp3'
+    warning: '/sounds/alertSound.mp3'
 };
