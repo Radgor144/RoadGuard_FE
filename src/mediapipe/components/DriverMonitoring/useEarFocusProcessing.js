@@ -4,7 +4,7 @@ import {
     mapEarToFocusPercent,
     FOCUS_UPDATE_INTERVAL,
     TOP_N_SAMPLES
-} from './EarFocusConstants';
+} from './EarToPercent';
 
 export const useEarFocusProcessing = (
     setLandmarks,
