@@ -168,7 +168,7 @@ export default function FocusPerTimeChart({
                     colorMap: {
                         type: 'piecewise',
                         thresholds: [25, 50, 100],
-                        colors: ['#cb1224', '#f59e0b', '#1B885E']
+                        colors: ['#cb1224', '#FD9200', '#1B885E']
                     }
                 }]}
                 series={[{

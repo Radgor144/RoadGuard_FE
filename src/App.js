@@ -3,10 +3,10 @@ import React from "react";
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import About from "./pages/About";
 import Stats from "./pages/Stats";
-import Home from "./pages/Home"
+import Home from "./pages/Home";
 import LiveFeed from "./components/LiveFeed";
 import { Login, Register, AuthProvider, useAuth, RequireAuth } from './features/auth';
-import {RecordingProvider} from "./components/SessionRecording/SessionRecording";
+import { RecordingProvider } from "./components/SessionRecording/SessionRecording";
 import AlertsPopup from "./components/Alerts/AlertsPopup";
 
 function TopRightAuth() {
@@ -21,7 +21,9 @@ function TopRightAuth() {
         return (
             <div className="top-right-auth">
                 <span style={{ color: 'white', marginRight: 8 }}>{auth.user.email}</span>
-                <button className="auth-link" id="logout_button" onClick={() => auth.logout()}>Logout</button>
+                <button className="auth-link" id="logout_button" onClick={() => auth.logout()}>
+                    Logout
+                </button>
             </div>
         );
     }
@@ -51,30 +53,18 @@ function AppContent() {
                 <Routes>
                     <Route path="/" element={<Navigate to="/roadguard" replace />} />
                     <Route path="/about" element={<About />} />
-                    <Route path="/roadguard" element={
-                        <RequireAuth>
-                            <LiveFeed />
-                        </RequireAuth>
-                    } />
+                    <Route
+                        path="/roadguard"
+                        element={
+                            <RequireAuth>
+                                <LiveFeed />
+                            </RequireAuth>
+                        }
+                    />
                     <Route path="/stats" element={<Stats />} />
                 </Routes>
             </main>
         </>
-    );
-}
-
-function App() {
-    return (
-        <AuthProvider>
-            {/* Global RecordingProvider so all components share the same alerts/context */}
-            <RecordingProvider>
-                <BrowserRouter>
-                    <InnerApp />
-                    {/* AlertsPopup renders popups based on RecordingContext.alerts */}
-                    <AlertsPopup />
-                </BrowserRouter>
-            </RecordingProvider>
-        </AuthProvider>
     );
 }
 
@@ -83,7 +73,6 @@ function InnerApp() {
 
     return (
         <div className="App" style={{ backgroundColor: '#0e1319', paddingTop: '20px' }}>
-
             <TopRightAuth />
 
             {auth.user ? (
@@ -92,14 +81,27 @@ function InnerApp() {
                 <main>
                     <Routes>
                         <Route path="/" element={<Home />} />
+                        <Route path="/about" element={<About />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </main>
             )}
-
         </div>
+    );
+}
+
+function App() {
+    return (
+        <AuthProvider>
+            <RecordingProvider>
+                <BrowserRouter>
+                    <InnerApp />
+                    <AlertsPopup />
+                </BrowserRouter>
+            </RecordingProvider>
+        </AuthProvider>
     );
 }
 
