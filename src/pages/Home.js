@@ -12,9 +12,18 @@ export default function Home() {
                 </p>
 
                 <div className="flex flex-col gap-4 mt-6">
+                    {/* About app – zielony */}
+                    <NavLink
+                        to="/about"
+                        className="bg-[#1B885E] hover:bg-[#15704c] transition px-6 py-3 rounded-lg font-semibold"
+                    >
+                        About app
+                    </NavLink>
+
+                    {/* Sign in – #FD9200 + biała czcionka */}
                     <NavLink
                         to="/login"
-                        className="bg-green-700 hover:bg-green-600 transition px-6 py-3 rounded-lg font-semibold"
+                        className="bg-[#FD9200] hover:bg-[#e68500] transition px-6 py-3 rounded-lg font-semibold text-white"
                     >
                         Sign in
                     </NavLink>
