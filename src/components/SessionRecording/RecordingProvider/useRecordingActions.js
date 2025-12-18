@@ -47,7 +47,7 @@ export const useRecordingActions = (
                 const payload = {
                     startTime: toISO(startTime),
                     endTime: toISO(nowMs),
-                    breaks: finalBreaks.map(b => ({ start: toISO(b.start), end: toISO(b.end) })),
+                    breaks: finalBreaks.map(b => ({ startTime: toISO(b.start), endTime: toISO(b.end) })),
                 };
 
                 console.debug('toggleRecording: payload prepared', payload);

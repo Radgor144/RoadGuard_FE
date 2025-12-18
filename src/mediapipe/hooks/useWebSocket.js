@@ -69,7 +69,7 @@ export const useWebSocket = (latestEARRef, enabled, token) => {
         if (!enabled || !latestEARRef) return;
         const interval = setInterval(() => {
             if (latestEARRef.current != null) sendEAR(latestEARRef.current);
-        }, 1000);
+        }, 100);
         return () => clearInterval(interval);
     }, [enabled, latestEARRef, sendEAR]);
 
