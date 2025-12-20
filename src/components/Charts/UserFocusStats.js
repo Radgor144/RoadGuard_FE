@@ -1,39 +1,73 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Typography } from '@mui/material';
-import mockEarData from '../../data/mockEarData';
+import React, { useMemo } from 'react';
+import { Box, Typography, Skeleton } from '@mui/material';
+import { useStatsData } from './StatsContext';
 
 function formatMinutesToHMM(minutes) {
+    if (!minutes) return '0 min';
     const h = Math.floor(minutes / 60);
     const m = Math.round(minutes % 60);
     return h === 0 ? `${m} min` : `${h}h ${m} min`;
 }
 
-export default function UserFocusStats({ useMockData = true }) {
-    const [dataset, setDataset] = useState([]);
-    const [loading, setLoading] = useState(true);
+export default function UserFocusStats() {
+    const { dataset, loading } = useStatsData();
 
-    useEffect(() => {
-        if (useMockData) {
-            setDataset(mockEarData);
-            setLoading(false);
+    const stats = useMemo(() => {
+        if (!dataset || dataset.length === 0) return null;
+
+        const validPoints = dataset.filter(d => d.focusPercentage !== null);
+
+        if (validPoints.length === 0) return null;
+
+        const values = validPoints.map(d => d.focusPercentage);
+
+        const sum = values.reduce((a, b) => a + b, 0);
+        const avg = sum / values.length;
+
+        const min = Math.min(...values);
+
+        const highFocusCount = values.filter(v => v >= 50).length;
+        const highFocusPercentage = (highFocusCount / values.length) * 100;
+
+        let totalMs = 0;
+        const GAP_THRESHOLD = 15 * 60 * 1000; // 15 minut (musi być zgodne z logiką w Context)
+
+        for (let i = 1; i < dataset.length; i++) {
+            const current = dataset[i];
+            const prev = dataset[i - 1];
+
+            if (current.focusPercentage === null || prev.focusPercentage === null) continue;
+
+            const diff = current.timestamp - prev.timestamp;
+
+            if (diff < GAP_THRESHOLD) {
+                totalMs += diff;
+            }
         }
-    }, [useMockData]);
+
+        const totalMinutes = totalMs > 0 ? Math.round(totalMs / 60000) : (validPoints.length > 0 ? 1 : 0);
+
+        return {
+            avg,
+            min,
+            highFocusPercentage,
+            totalMinutes
+        };
+    }, [dataset]);
 
     if (loading) {
-        return <Typography sx={{ color: '#fff' }}>Loading statistics...</Typography>;
+        return (
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+                {[...Array(4)].map((_, i) => (
+                    <Skeleton key={i} variant="rectangular" height={140} sx={{ borderRadius: 2, bgcolor: 'rgba(255,255,255,0.1)' }} />
+                ))}
+            </Box>
+        );
     }
 
-    const values = dataset.map(d => d.focusPercentage ?? 0);
-
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
-    const min = Math.min(...values);
-
-    const highFocusCount = values.filter(v => v >= 50).length;
-    const highFocusPercentage = (highFocusCount / values.length) * 100;
-
-    const first = new Date(dataset[0]?.timestamp);
-    const last = new Date(dataset.at(-1)?.timestamp);
-    const totalMinutes = Math.max(0, Math.round((last - first) / 60000));
+    if (!stats) {
+        return <Typography sx={{ color: '#fff', mt: 2 }}>No statistics available for this period.</Typography>;
+    }
 
     const cardStyle = {
         bgcolor: '#1f2937',
@@ -60,7 +94,7 @@ export default function UserFocusStats({ useMockData = true }) {
                     Average focus
                 </Typography>
                 <Typography variant="h3">
-                    {avg.toFixed(1)}%
+                    {stats.avg.toFixed(1)}%
                 </Typography>
             </Box>
 
@@ -69,7 +103,7 @@ export default function UserFocusStats({ useMockData = true }) {
                     Minimum focus
                 </Typography>
                 <Typography variant="h3">
-                    {min.toFixed(1)}%
+                    {stats.min.toFixed(1)}%
                 </Typography>
             </Box>
 
@@ -78,7 +112,7 @@ export default function UserFocusStats({ useMockData = true }) {
                     High focus driving
                 </Typography>
                 <Typography variant="h3">
-                    {highFocusPercentage.toFixed(1)}%
+                    {stats.highFocusPercentage.toFixed(1)}%
                 </Typography>
             </Box>
 
@@ -87,7 +121,7 @@ export default function UserFocusStats({ useMockData = true }) {
                     Total driving time
                 </Typography>
                 <Typography variant="h4">
-                    {formatMinutesToHMM(totalMinutes)}
+                    {formatMinutesToHMM(stats.totalMinutes)}
                 </Typography>
             </Box>
         </Box>
