@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { LineChart } from '@mui/x-charts/LineChart';
-import { Box, Typography, useMediaQuery } from "@mui/material";
-import mockEarData from '../../data/mockEarData';
+import React, {useState, useEffect, useMemo} from 'react';
+import {LineChart} from '@mui/x-charts/LineChart';
+import {Box, Typography, useMediaQuery} from "@mui/material";
+import {useStatsData} from "./StatsContext";
 
 function downsampleByAveraging(dataset) {
     if (dataset.length <= 2) return dataset;
@@ -13,36 +13,42 @@ function downsampleByAveraging(dataset) {
         const p1 = dataset[i];
         const p2 = dataset[i + 1];
 
-        if (!p2) {
+        if (p1.focusPercentage === null) {
+            result.push(p1);
+            if (p2) i--;
+            continue;
+        }
+
+        if (!p2 || p2.focusPercentage === null) {
             result.push(p1);
         } else {
+            const avgTime = new Date((p1.timestamp.getTime() + p2.timestamp.getTime()) / 2);
             result.push({
-                timeLabel: p2.timeLabel,
+                timestamp: avgTime,
                 focusPercentage: Math.round(
                     (p1.focusPercentage + p2.focusPercentage) / 2
                 )
             });
         }
     }
-
     return result;
 }
 
-export default function FocusPerTimeChart({
-                                              useMockData = true,
-                                              apiUrl = 'http://localhost:8080/api/chart-data'
-                                          }) {
-    const [dataset, setDataset] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+export default function FocusPerTimeChart() {
+    const { dataset, loading, error, startTime, endTime } = useStatsData();
     const [chartWidth, setChartWidth] = useState(450);
-
     const isCompactChart = useMediaQuery('(max-width:750px)');
+
+    const isMultiDay = useMemo(() => {
+        if (!startTime || !endTime) return false;
+        const start = new Date(startTime);
+        const end = new Date(endTime);
+        return (end - start) > (24 * 60 * 60 * 1000);
+    }, [startTime, endTime]);
 
     useEffect(() => {
         const calculateWidth = () => {
             const screenWidth = window.innerWidth;
-
             if (screenWidth < 600) {
                 setChartWidth(450);
             } else if (screenWidth > 1100) {
@@ -57,64 +63,32 @@ export default function FocusPerTimeChart({
         return () => window.removeEventListener('resize', calculateWidth);
     }, []);
 
-    useEffect(() => {
-        let isMounted = true;
-
-        const fetchData = async () => {
-            setLoading(true);
-            setError(null);
-
-            if (useMockData) {
-                if (isMounted) {
-                    setDataset(mockEarData);
-                    setLoading(false);
-                }
-                return;
-            }
-
-            try {
-                const res = await fetch(apiUrl);
-                if (!res.ok) {
-                    if (isMounted) {
-                        setError(`HTTP ${res.status}`);
-                        setDataset(mockEarData);
-                    }
-                    return;
-                }
-                const data = await res.json();
-                if (isMounted) setDataset(data);
-            } catch (err) {
-                console.error(err);
-                if (isMounted) {
-                    setError(err.message);
-                    setDataset(mockEarData);
-                }
-            } finally {
-                if (isMounted) setLoading(false);
-            }
-        };
-
-        fetchData();
-        return () => { isMounted = false; };
-    }, [useMockData, apiUrl]);
-
     if (loading) {
-        return <Typography sx={{ color: '#fff' }}>Loading data...</Typography>;
+        return <Typography sx={{color: '#fff'}}>Loading data...</Typography>;
     }
 
-    if (!dataset.length) {
+    if (!dataset.length && error) {
         return (
-            <Typography sx={{ color: '#fff' }}>
-                {error ? `Error: ${error}` : 'No data to show'}
+            <Typography sx={{color: '#fff'}}>
+                {error ? `Error: ${error}` : 'No data'}
             </Typography>
         );
     }
+
+    const dateFormatter = (date) => {
+        if (isMultiDay) {
+            return date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' }) +
+                ' ' +
+                date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
     const chartDataset = isCompactChart
         ? downsampleByAveraging(dataset)
         : dataset;
 
-    const timeLabels = chartDataset.map(p => p.timeLabel);
+    const timeData = chartDataset.map(p => p.timestamp);
     const focusValues = chartDataset.map(p => p.focusPercentage);
 
     return (
@@ -122,7 +96,7 @@ export default function FocusPerTimeChart({
             sx={{
                 bgcolor: '#1f2937',
                 borderRadius: 2,
-                p: { xs: 1, md: 2 },
+                p: {xs: 1, md: 2},
                 boxShadow: '0 4px 10px rgba(0,0,0,0.6)',
                 display: 'flex',
                 justifyContent: 'center'
@@ -136,17 +110,20 @@ export default function FocusPerTimeChart({
                     stroke: 'rgba(255,255,255,0.15)'
                 }}
                 sx={{
-                    '& .MuiChartsAxis-tickLabel': { fill: '#fff' },
-                    '& .MuiChartsAxis-label': { fill: '#fff' },
-                    '& .MuiChartsLegend-label': { fill: '#fff' },
+                    '& .MuiChartsAxis-tickLabel': {fill: '#fff'},
+                    '& .MuiChartsAxis-label': {fill: '#fff'},
+                    '& .MuiChartsLegend-label': {fill: '#fff'},
                     '& .MuiChartsGrid-line': {
-                    stroke: '#fff',
-                    strokeOpacity: 0.2
-                }
+                        stroke: '#fff',
+                        strokeOpacity: 0.2
+                    }
                 }}
                 xAxis={[{
-                    scaleType: 'point',
-                    data: timeLabels,
+                    scaleType: 'time',
+                    data: timeData,
+                    min: new Date(startTime),
+                    max: new Date(endTime),
+                    valueFormatter: dateFormatter,
                     tickNumber: isCompactChart ? 6 : 10,
                     tickLabelStyle: {
                         fontSize: isCompactChart ? 10 : 12,
@@ -173,9 +150,10 @@ export default function FocusPerTimeChart({
                 }]}
                 series={[{
                     data: focusValues,
-                    curve: 'catmullRom',
-                    showMark: true,
-                    valueFormatter: v => `${v}%`
+                    curve: 'linear',
+                    showMark: false,
+                    connectNulls: false,
+                    valueFormatter: v => v == null ? '' : `${v}%`
                 }]}
                 margin={{
                     left: 60,
