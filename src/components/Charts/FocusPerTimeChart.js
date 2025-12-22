@@ -155,7 +155,7 @@ export default function FocusPerTimeChart() {
                         stroke="#8884d8"
                         fill="url(#colorFocus)"
                         name="Focus"
-                        connectNulls={true}
+                        connectNulls={false}
                         isAnimationActive={false}
                     />
                 </AreaChart>
