@@ -15,7 +15,9 @@ export default function UserFocusStats() {
     const stats = useMemo(() => {
         if (!dataset || dataset.length === 0) return null;
 
-        const validPoints = dataset.filter(d => d.focusPercentage !== null);
+        const validPoints = dataset
+            .filter(d => d.focusPercentage != null)
+            .map(d => ({ ...d, focusPercentage: Number(d.focusPercentage) }));
 
         if (validPoints.length === 0) return null;
 
@@ -30,28 +32,26 @@ export default function UserFocusStats() {
         const highFocusPercentage = (highFocusCount / values.length) * 100;
 
         let totalMs = 0;
-        const GAP_THRESHOLD = 15 * 60 * 1000; // 15 minut (musi być zgodne z logiką w Context)
+        const GAP_THRESHOLD = 15 * 60 * 1000;
 
         for (let i = 1; i < dataset.length; i++) {
             const current = dataset[i];
             const prev = dataset[i - 1];
 
-            if (current.focusPercentage === null || prev.focusPercentage === null) continue;
+            if (current.focusPercentage == null || prev.focusPercentage == null) continue;
 
             const diff = current.timestamp - prev.timestamp;
-
-            if (diff < GAP_THRESHOLD) {
-                totalMs += diff;
-            }
+            if (diff < GAP_THRESHOLD) totalMs += diff;
         }
 
-        const totalMinutes = totalMs > 0 ? Math.round(totalMs / 60000) : (validPoints.length > 0 ? 1 : 0);
+        // Uproszczenie: jeśli są dane (validPoints.length > 0) i totalMs jest 0, ustaw na 1 (aby pokazać "1 min" jako minimum).
+        const totalMinutes = Math.round(totalMs / 60000);
 
         return {
             avg,
             min,
             highFocusPercentage,
-            totalMinutes
+            totalMinutes: totalMinutes > 0 ? totalMinutes : (validPoints.length > 0 ? 1 : 0)
         };
     }, [dataset]);
 
@@ -78,51 +78,25 @@ export default function UserFocusStats() {
     };
 
     return (
-        <Box
-            sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                    xs: '1fr',
-                    sm: 'repeat(2, 1fr)',
-                    md: 'repeat(4, 1fr)'
-                },
-                gap: 2
-            }}
-        >
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
             <Box sx={cardStyle}>
-                <Typography fontWeight={700}>
-                    Average focus
-                </Typography>
-                <Typography variant="h3">
-                    {stats.avg.toFixed(1)}%
-                </Typography>
+                <Typography fontWeight={700}>Average focus</Typography>
+                <Typography variant="h3">{stats.avg.toFixed(1)}%</Typography>
             </Box>
 
             <Box sx={cardStyle}>
-                <Typography fontWeight={700}>
-                    Minimum focus
-                </Typography>
-                <Typography variant="h3">
-                    {stats.min.toFixed(1)}%
-                </Typography>
+                <Typography fontWeight={700}>Minimum focus</Typography>
+                <Typography variant="h3">{stats.min.toFixed(1)}%</Typography>
             </Box>
 
             <Box sx={cardStyle}>
-                <Typography fontWeight={700}>
-                    High focus driving
-                </Typography>
-                <Typography variant="h3">
-                    {stats.highFocusPercentage.toFixed(1)}%
-                </Typography>
+                <Typography fontWeight={700}>High focus driving</Typography>
+                <Typography variant="h3">{stats.highFocusPercentage.toFixed(1)}%</Typography>
             </Box>
 
             <Box sx={cardStyle}>
-                <Typography fontWeight={700}>
-                    Total driving time
-                </Typography>
-                <Typography variant="h4">
-                    {formatMinutesToHMM(stats.totalMinutes)}
-                </Typography>
+                <Typography fontWeight={700}>Total driving time</Typography>
+                <Typography variant="h4">{formatMinutesToHMM(stats.totalMinutes)}</Typography>
             </Box>
         </Box>
     );
