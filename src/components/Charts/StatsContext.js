@@ -9,6 +9,7 @@ export const useStatsData = () => {
 
 export const StatsProvider = ({ children, startTime, endTime }) => {
     const [data, setData] = useState([]);
+    const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -21,52 +22,65 @@ export const StatsProvider = ({ children, startTime, endTime }) => {
             setLoading(true);
             setError(null);
 
+            const normalize = (t) => {
+                if (t instanceof Date) return t.toISOString();
+                return String(t);
+            };
+
+            // Teraz startTime i endTime pójdą do backendu dokładnie w takiej formie, w jakiej są w stanie aplikacji
             const requestData = {
-                startTime: startTime,
-                endTime: endTime
+                startTime: normalize(startTime),
+                endTime: normalize(endTime)
+            };
+
+            const rg_token = localStorage.getItem('rg_token');
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(rg_token ? { Authorization: `Bearer ${rg_token}` } : {})
             };
 
             try {
-                const rg_token = localStorage.getItem('rg_token');
-                const res = await fetch(`http://localhost:8082/api/dashboard/ear-data`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(rg_token ? { Authorization: `Bearer ${rg_token}` } : {})
-                    },
-                    body: JSON.stringify(requestData)
-                });
+                // Dodajemy parametry do URL dla GET
+                const queryParams = new URLSearchParams({
+                    startTime: requestData.startTime,
+                    endTime: requestData.endTime
+                }).toString();
 
-                if (!res.ok) {
-                    if (isMounted) {
-                        setError(`HTTP ${res.status}`);
-                        setData([]);
-                    }
+                const [earRes, sessionsRes] = await Promise.all([
+                    fetch(`http://localhost:8082/api/dashboard/ear-data`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify(requestData)
+                    }),
+                    fetch(`http://localhost:8082/api/dashboard/driving-sessions?${queryParams}`, {
+                        method: 'GET',
+                        headers
+                    })
+                ]);
+
+                if (!earRes.ok || !sessionsRes.ok) {
+                    if (isMounted) setError(`HTTP Error: ${earRes.status} / ${sessionsRes.status}`);
                     return;
                 }
 
-                const responseData = await res.json();
+                const earDataJson = await earRes.json();
+                const sessionsJson = await sessionsRes.json();
 
                 if (isMounted) {
-                    const rawData = responseData.activeDriveData || [];
-
+                    const rawData = earDataJson.activeDriveData || [];
                     let formattedData = rawData.map(item => ({
                         timestamp: new Date(item.timestamp),
                         focusPercentage: mapEarToFocusPercent(item.averageEar)
                     }));
-
-                    formattedData.sort((a, b) => a.timestamp - b.timestamp);
+                    formattedData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
                     const dataWithGaps = [];
                     const GAP_THRESHOLD_MS = 15 * 60 * 1000;
-
                     for (let i = 0; i < formattedData.length; i++) {
                         const current = formattedData[i];
                         if (i > 0) {
                             const prev = formattedData[i - 1];
-                            const diff = current.timestamp - prev.timestamp;
-
-                            if (diff > GAP_THRESHOLD_MS) {
+                            if ((current.timestamp.getTime() - prev.timestamp.getTime()) > GAP_THRESHOLD_MS) {
                                 dataWithGaps.push({
                                     timestamp: new Date(prev.timestamp.getTime() + 1000),
                                     focusPercentage: null
@@ -75,14 +89,23 @@ export const StatsProvider = ({ children, startTime, endTime }) => {
                         }
                         dataWithGaps.push(current);
                     }
-
                     setData(dataWithGaps);
+
+                    const normalizedSessions = Array.isArray(sessionsJson) ? sessionsJson.map((s, index) => ({
+                        ...s,
+                        id: s.id || (index + 1),
+                        startTime: s.startTime,
+                        endTime: s.endTime
+                    })) : [];
+
+                    setSessions(normalizedSessions);
                 }
             } catch (err) {
                 console.error(err);
                 if (isMounted) {
                     setError(err.message);
                     setData([]);
+                    setSessions([]);
                 }
             } finally {
                 if (isMounted) setLoading(false);
@@ -98,6 +121,7 @@ export const StatsProvider = ({ children, startTime, endTime }) => {
 
     const value = {
         dataset: data,
+        sessions,
         loading,
         error,
         startTime,
