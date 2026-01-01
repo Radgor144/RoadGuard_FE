@@ -1,5 +1,5 @@
 import React, {createContext, useContext, useState, useEffect} from 'react';
-import {mapEarToFocusPercent} from "../../mediapipe/components/DriverMonitoring/EarToPercent";
+import {normalizeDate, processEarData, processSessions} from "./StatsHelpers";
 
 const StatsContext = createContext();
 
@@ -10,11 +10,15 @@ export const useStatsData = () => {
 export const StatsProvider = ({ children, startTime, endTime }) => {
     const [data, setData] = useState([]);
     const [sessions, setSessions] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        if (!startTime || !endTime) return;
+        if (!startTime || !endTime) {
+            setData([]);
+            setLoading(false);
+            return;
+        }
 
         let isMounted = true;
 
@@ -22,15 +26,9 @@ export const StatsProvider = ({ children, startTime, endTime }) => {
             setLoading(true);
             setError(null);
 
-            const normalize = (t) => {
-                if (t instanceof Date) return t.toISOString();
-                return String(t);
-            };
-
-            // Teraz startTime i endTime pójdą do backendu dokładnie w takiej formie, w jakiej są w stanie aplikacji
             const requestData = {
-                startTime: normalize(startTime),
-                endTime: normalize(endTime)
+                startTime: normalizeDate(startTime),
+                endTime: normalizeDate(endTime)
             };
 
             const rg_token = localStorage.getItem('rg_token');
@@ -40,19 +38,13 @@ export const StatsProvider = ({ children, startTime, endTime }) => {
             };
 
             try {
-                // Dodajemy parametry do URL dla GET
-                const queryParams = new URLSearchParams({
-                    startTime: requestData.startTime,
-                    endTime: requestData.endTime
-                }).toString();
-
                 const [earRes, sessionsRes] = await Promise.all([
                     fetch(`http://localhost:8082/api/dashboard/ear-data`, {
                         method: 'POST',
                         headers,
                         body: JSON.stringify(requestData)
                     }),
-                    fetch(`http://localhost:8082/api/dashboard/driving-sessions?${queryParams}`, {
+                    fetch(`http://localhost:8082/api/dashboard/driving-sessions`, {
                         method: 'GET',
                         headers
                     })
@@ -67,38 +59,11 @@ export const StatsProvider = ({ children, startTime, endTime }) => {
                 const sessionsJson = await sessionsRes.json();
 
                 if (isMounted) {
-                    const rawData = earDataJson.activeDriveData || [];
-                    let formattedData = rawData.map(item => ({
-                        timestamp: new Date(item.timestamp),
-                        focusPercentage: mapEarToFocusPercent(item.averageEar)
-                    }));
-                    formattedData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+                    const cleanChartData = processEarData(earDataJson.activeDriveData);
+                    const cleanSessions = processSessions(sessionsJson);
 
-                    const dataWithGaps = [];
-                    const GAP_THRESHOLD_MS = 15 * 60 * 1000;
-                    for (let i = 0; i < formattedData.length; i++) {
-                        const current = formattedData[i];
-                        if (i > 0) {
-                            const prev = formattedData[i - 1];
-                            if ((current.timestamp.getTime() - prev.timestamp.getTime()) > GAP_THRESHOLD_MS) {
-                                dataWithGaps.push({
-                                    timestamp: new Date(prev.timestamp.getTime() + 1000),
-                                    focusPercentage: null
-                                });
-                            }
-                        }
-                        dataWithGaps.push(current);
-                    }
-                    setData(dataWithGaps);
-
-                    const normalizedSessions = Array.isArray(sessionsJson) ? sessionsJson.map((s, index) => ({
-                        ...s,
-                        id: s.id || (index + 1),
-                        startTime: s.startTime,
-                        endTime: s.endTime
-                    })) : [];
-
-                    setSessions(normalizedSessions);
+                    setData(cleanChartData);
+                    setSessions(cleanSessions);
                 }
             } catch (err) {
                 console.error(err);

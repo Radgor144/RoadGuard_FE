@@ -15,7 +15,7 @@ export const useRecordingActions = (
     } = actions;
     const { addAlert, resetSessionHistory } = alertActions;
 
-    const { wsConnect, authToken, driverId } = wsData;
+    const { wsConnect, authToken } = wsData;
 
     const toggleRecording = useCallback(async () => {
         console.info('toggleRecording: invoked, isRecording=', isRecording);
@@ -104,7 +104,7 @@ export const useRecordingActions = (
             currentBreakStartRef.current = null;
             setLastBreakEndTime(now); // Reset time since last break (to start counting up)
         }
-    }, [isRecording, isTakingBreak, breaksList, startTime, authToken, wsConnect, setBreaksList, setIsRecording, setIsTakingBreak, setBreakTime, setStartTime, setLastBreakEndTime, addAlert, currentBreakStartRef.current, resetSessionHistory, setElapsedTime]);
+    }, [isRecording, isTakingBreak, breaksList, startTime, authToken, wsConnect, setBreaksList, setIsRecording, setIsTakingBreak, setBreakTime, setStartTime, setLastBreakEndTime, addAlert, currentBreakStartRef, resetSessionHistory, setElapsedTime]);
 
 
     const toggleBreak = useCallback(() => {
@@ -141,7 +141,7 @@ export const useRecordingActions = (
             console.info('toggleBreak: break started at', start);
             addAlert('Break started', 'info', true);
         }
-    }, [isRecording, isTakingBreak, setBreakTime, setIsTakingBreak, setLastBreakEndTime, setBreaksList, addAlert, currentBreakStartRef.current]);
+    }, [isRecording, isTakingBreak, setBreakTime, setIsTakingBreak, setLastBreakEndTime, setBreaksList, addAlert, currentBreakStartRef]);
 
     return { toggleRecording, toggleBreak };
 };

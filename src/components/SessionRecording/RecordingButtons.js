@@ -3,8 +3,6 @@ import { RecordingContext, formatTime } from './RecordingContext';
 
 export const RecordingButton = () => {
     const { isRecording, elapsedTime, toggleRecording, isTakingBreak } = useContext(RecordingContext);
-    const isDisabled = isTakingBreak;
-    const buttonClass = isRecording ? "recording-stop-btn" : "recording-start-btn";
 
     return (
         <div>
@@ -14,8 +12,8 @@ export const RecordingButton = () => {
 
             <button
                 onClick={toggleRecording}
-                disabled={isDisabled}
-                className={`${buttonClass} ${isDisabled ? 'disabled' : ''}`}
+                disabled={isTakingBreak}
+                className={`recording-${isRecording ? 'stop' : 'start'}-btn ${isTakingBreak ? 'disabled' : ''}`}
             >
                 {isRecording ? "Stop Driving" : "Start Driving"}
             </button>
@@ -23,26 +21,19 @@ export const RecordingButton = () => {
     );
 };
 
-
 export const BreakButton = () => {
     const { isRecording, isTakingBreak, breakTime, toggleBreak } = useContext(RecordingContext);
-    const buttonClass = isTakingBreak ? "break-end-btn" : "break-take-btn";
-    const isDisabled = !isRecording;
 
     return (
         <div className="button-container">
-            <div className={`
-                timer-display 
-                break-timer-display
-                ${isTakingBreak ? 'break-active' : 'break-inactive'}
-            `}>
+            <div className={`timer-display break-timer-display ${isTakingBreak ? 'break-active' : 'break-inactive'}`}>
                 {formatTime(breakTime)}
             </div>
 
             <button
                 onClick={toggleBreak}
-                disabled={isDisabled}
-                className={`${buttonClass} ${isDisabled ? 'disabled' : ''}`}
+                disabled={!isRecording}
+                className={`break-${isTakingBreak ? 'end' : 'take'}-btn ${!isRecording ? 'disabled' : ''}`}
             >
                 {isTakingBreak ? "End Break" : "Take Break"}
             </button>

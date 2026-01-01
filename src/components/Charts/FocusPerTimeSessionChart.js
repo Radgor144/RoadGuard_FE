@@ -3,11 +3,10 @@ import {LineChart} from '@mui/x-charts/LineChart';
 import {Box, Typography, useMediaQuery} from "@mui/material";
 import {useStatsData} from "./StatsContext";
 
-export default function FocusPerTimeChart() {
-    const { dataset, loading, error, startTime, endTime } = useStatsData();
+export default function FocusPerTimeSessionChart() {
+    const { dataset, loading, error } = useStatsData();
     const [chartWidth, setChartWidth] = useState(window.innerWidth > 1100 ? 950 : window.innerWidth - 40);
     const isCompactChart = useMediaQuery('(max-width:750px)');
-    const POINTS_COUNT = isCompactChart ? 40 : 80;
 
     useEffect(() => {
         let timeoutId;
@@ -31,51 +30,16 @@ export default function FocusPerTimeChart() {
     }, []);
 
     const isMultiDay = useMemo(() => {
-        if (!startTime || !endTime) return false;
-        return (new Date(endTime) - new Date(startTime)) > (24 * 60 * 60 * 1000);
-    }, [startTime, endTime]);
+        if (!dataset || dataset.length < 2) return false;
+        const start = new Date(dataset[0].timestamp);
+        const end = new Date(dataset[dataset.length - 1].timestamp);
+        return (end - start) > (24 * 60 * 60 * 1000);
+    }, [dataset]);
 
-    // --- LOGIKA BINNINGU ---
     const chartData = useMemo(() => {
         if (!dataset || dataset.length === 0) return [];
-
-        const startMs = new Date(startTime).getTime();
-        const endMs = new Date(endTime).getTime();
-        const totalDuration = endMs - startMs;
-
-        if (totalDuration <= 0) return [];
-
-        const stepSize = totalDuration / POINTS_COUNT;
-
-        const buckets = new Array(POINTS_COUNT).fill(null).map((_, i) => ({
-            timestamp: new Date(startMs + (i * stepSize)),
-            sumFocus: 0,
-            count: 0
-        }));
-
-        dataset.forEach(item => {
-            if (item.focusPercentage === null) return;
-
-            const itemTime = item.timestamp.getTime();
-            let index = Math.floor((itemTime - startMs) / stepSize);
-            if (index >= POINTS_COUNT) index = POINTS_COUNT - 1;
-
-            if (index >= 0) {
-                buckets[index].sumFocus += item.focusPercentage;
-                buckets[index].count += 1;
-            }
-        });
-
-        return buckets.map(bucket => {
-            if (bucket.count === 0) {
-                return { timestamp: bucket.timestamp, focusPercentage: null };
-            }
-            return {
-                timestamp: bucket.timestamp,
-                focusPercentage: Math.round(bucket.sumFocus / bucket.count)
-            };
-        });
-    }, [dataset, startTime, endTime, POINTS_COUNT]);
+        return dataset;
+    }, [dataset]);
 
     const xAxisFormatter = useCallback((date) => {
         const options = { hour: '2-digit', minute: '2-digit' };
@@ -86,8 +50,8 @@ export default function FocusPerTimeChart() {
     }, [isMultiDay]);
 
     if (loading) return <Typography sx={{color: '#fff', p: 2}}>Loading chart data...</Typography>;
-    if (error && !dataset.length) return <Typography sx={{color: '#cb1224', p: 2}}>Error: {error}</Typography>;
-    if (!dataset.length) return <Typography sx={{color: '#aaa', p: 2}}>No detailed data for this period.</Typography>;
+    if (error && (!dataset || !dataset.length)) return <Typography sx={{color: '#cb1224', p: 2}}>Error: {error}</Typography>;
+    if (!dataset || !dataset.length) return <Typography sx={{color: '#aaa', p: 2}}>No detailed data for this period.</Typography>;
 
     return (
         <Box
@@ -111,9 +75,7 @@ export default function FocusPerTimeChart() {
                 }}
                 xAxis={[{
                     scaleType: 'time',
-                    data: chartData.map(d => d.timestamp),
-                    min: new Date(startTime),
-                    max: new Date(endTime),
+                    data: chartData.map(d => new Date(d.timestamp)),
                     valueFormatter: xAxisFormatter,
                     tickNumber: isCompactChart ? 4 : 8,
                 }]}
