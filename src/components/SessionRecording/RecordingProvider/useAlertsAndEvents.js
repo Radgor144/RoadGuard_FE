@@ -1,6 +1,17 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 
-const FOCUS_ALERT_COOLDOWN = 30; // seconds
+const CONFIG = {
+    FOCUS_COOLDOWN_MS: 30 * 1000,
+    SESSION_LIMIT_SEC: 4 * 3600, // 4 godziny
+    BREAK_LIMIT_SEC: 2 * 3600,   // 2 godziny
+};
+
+const createLogEntry = (message, type) => ({
+    id: Date.now() + Math.random(),
+    timestamp: Date.now(),
+    message,
+    type
+});
 
 export const useAlertsAndEvents = (
     isRecording,
@@ -12,117 +23,81 @@ export const useAlertsAndEvents = (
     const [eventHistory, setEventHistory] = useState([]);
     const [alerts, setAlerts] = useState([]);
 
-    const prevFocusRef = useRef(null);
+    const lastAlertTime = useRef({ focus50: 0, focus25: 0 });
+    const hasAlerted = useRef({ sessionLimit: false, breakLimit: false });
 
-    // spam control refs
-    const lastAlertFocus50 = useRef(0);
-    const lastAlertFocus25 = useRef(0);
-    const alertedSession4h = useRef(false);
-    const alertedNoBreak2h = useRef(false);
-
-    // reset alerts and history
     const resetSessionHistory = useCallback(() => {
         setEventHistory([]);
         setAlerts([]);
-        lastAlertFocus50.current = 0;
-        lastAlertFocus25.current = 0;
-        alertedSession4h.current = false;
-        alertedNoBreak2h.current = false;
+        lastAlertTime.current = { focus50: 0, focus25: 0 };
+        hasAlerted.current = { sessionLimit: false, breakLimit: false };
     }, []);
 
-    // event logging
+    const shouldLog = useCallback((force) => {
+        return force || (isRecording && !isTakingBreak);
+    }, [isRecording, isTakingBreak]);
+
     const addEvent = useCallback((message, type = 'info', force = false) => {
-        if ((!isRecording || isTakingBreak) && !force) {
-            console.log('Ignored event (recording inactive or on break):', message);
-            return;
-        }
+        if (!shouldLog(force)) return;
 
-        const e = {
-            id: Date.now() + Math.random(),
-            timestamp: Date.now(),
-            message,
-            type
-        };
-        setEventHistory(prev => [e, ...prev]);
-        console.log('Event:', message);
-    }, [isRecording, isTakingBreak]);
+        const entry = createLogEntry(message, type);
+        setEventHistory(prev => [entry, ...prev]);
+        console.log(`[Event:${type}]`, message);
+    }, [shouldLog]);
 
-    // alert adding
     const addAlert = useCallback((message, type = 'warning', force = false) => {
-        if ((!isRecording || isTakingBreak) && !force) {
-            console.log('Ignored alert (recording inactive or on break):', message);
-            return;
-        }
+        if (!shouldLog(force)) return;
 
-        const a = {
-            id: Date.now() + Math.random(),
-            timestamp: Date.now(),
-            message,
-            type
-        };
-        setAlerts(prev => [...prev, a]);
-        setEventHistory(prev => [{...a, message: a.message, type: a.type, timestamp: a.timestamp, id: a.id}, ...prev]);
-        console.log(`Alert (${type}):`, message);
-    }, [isRecording, isTakingBreak]);
+        const entry = createLogEntry(message, type);
+        setAlerts(prev => [...prev, entry]);
+        setEventHistory(prev => [entry, ...prev]);
+        console.log(`[Alert:${type}]`, message);
+    }, [shouldLog]);
 
-    const displayAlerts = alerts.slice(-10).reverse();
-
-    // 1. Monitor focus percentage and generate alerts
     useEffect(() => {
-        if (!isRecording || isTakingBreak) {
-            prevFocusRef.current = null;
-            return;
-        }
+        if (!isRecording || isTakingBreak) return;
 
-        const fp = typeof focusPercent === 'number' ? focusPercent : 100;
         const now = Date.now();
+        const fp = focusPercent ?? 100;
+        const { focus25, focus50 } = lastAlertTime.current;
 
-        if (prevFocusRef.current === null) prevFocusRef.current = fp;
+        const canAlert25 = (now - focus25) >= CONFIG.FOCUS_COOLDOWN_MS;
+        const canAlert50 = (now - focus50) >= CONFIG.FOCUS_COOLDOWN_MS;
 
-        if (fp <= 25) {
-            const last25 = lastAlertFocus25.current || 0;
-            if (now - last25 >= FOCUS_ALERT_COOLDOWN * 1000) {
-                addAlert('Critical: Focus dropped below 25%', 'critical');
-                lastAlertFocus25.current = now;
-                lastAlertFocus50.current = now;
-            }
-        } else if (fp <= 50) {
-            const last50 = lastAlertFocus50.current || 0;
-            if (now - last50 >= FOCUS_ALERT_COOLDOWN * 1000) {
-                addAlert('Warning: Focus dropped below 50%', 'warning');
-                lastAlertFocus50.current = now;
-            }
+        if (fp <= 25 && canAlert25) {
+            addAlert('Critical: Focus dropped below 25%', 'critical');
+            lastAlertTime.current.focus25 = now;
+            lastAlertTime.current.focus50 = now;
         }
-
-        prevFocusRef.current = fp;
+        else if (fp <= 50 && fp > 25 && canAlert50) {
+            addAlert('Warning: Focus dropped below 50%', 'warning');
+            lastAlertTime.current.focus50 = now;
+        }
     }, [focusPercent, isRecording, isTakingBreak, addAlert]);
 
-    // 2. Monitor driving session length (4 hours)
     useEffect(() => {
         if (!isRecording) return;
-        const FOUR_HOURS = 4 * 3600;
-        if (elapsedTime >= FOUR_HOURS && !alertedSession4h.current) {
+
+        const { sessionLimit, breakLimit } = hasAlerted.current;
+
+        if (elapsedTime >= CONFIG.SESSION_LIMIT_SEC && !sessionLimit) {
             addAlert('Attention: Driving session exceeded 4 hours', 'alert');
-            alertedSession4h.current = true;
+            hasAlerted.current.sessionLimit = true;
         }
-    }, [elapsedTime, isRecording, addAlert]);
 
-    // 3. Monitor time since last break (>2 hours)
-    useEffect(() => {
-        if (!isRecording) return;
-        const TWO_HOURS = 2 * 3600;
-        if (timeSinceLastBreak >= TWO_HOURS && !alertedNoBreak2h.current) {
+        if (timeSinceLastBreak >= CONFIG.BREAK_LIMIT_SEC && !breakLimit) {
             addAlert('Attention: More than 2 hours since last break', 'alert');
-            alertedNoBreak2h.current = true;
+            hasAlerted.current.breakLimit = true;
         }
-    }, [timeSinceLastBreak, isRecording, addAlert]);
+    }, [elapsedTime, timeSinceLastBreak, isRecording, addAlert]);
 
+    const displayAlerts = useMemo(() => alerts.slice(-10).reverse(), [alerts]);
 
     return {
         eventHistory,
-        addEvent,
         alerts,
         displayAlerts,
+        addEvent,
         addAlert,
         resetSessionHistory,
     };

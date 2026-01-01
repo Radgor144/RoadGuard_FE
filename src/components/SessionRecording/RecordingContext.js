@@ -19,7 +19,9 @@ export const toISO = (v) => {
     if (v === null || v === undefined) return undefined;
     const d = new Date(v);
     if (isNaN(d.getTime())) return undefined;
-    return d.toISOString();
+    const offsetMs = d.getTimezoneOffset() * 60000;
+    const localDate = new Date(d.getTime() - offsetMs);
+    return localDate.toISOString().slice(0, -1);
 };
 
 export const RecordingContext = createContext({

@@ -2,82 +2,55 @@ import { useState, useEffect, useRef } from "react";
 
 export const useRecordingTimers = () => {
     const [isRecording, setIsRecording] = useState(false);
-    const [elapsedTime, setElapsedTime] = useState(0); // Driving time in seconds
-
     const [isTakingBreak, setIsTakingBreak] = useState(false);
-    const [startTime, setStartTime] = useState(0);
-    const [breakTime, setBreakTime] = useState(0);
 
-    const [lastBreakEndTime, setLastBreakEndTime] = useState(0);
+    const [elapsedTime, setElapsedTime] = useState(0);      // Czas jazdy
+    const [breakTime, setBreakTime] = useState(0);          // Czas obecnej przerwy
     const [timeSinceLastBreak, setTimeSinceLastBreak] = useState(0);
 
-    const currentBreakStartRef = useRef(null);
+    const [startTime, setStartTime] = useState(0);
+    const [lastBreakEndTime, setLastBreakEndTime] = useState(0);
     const [breaksList, setBreaksList] = useState([]);
+    const currentBreakStartRef = useRef(null);
 
-    // 1. Driving timer (elapsedTime)
     useEffect(() => {
-        let interval = null;
-        if (isRecording && !isTakingBreak) {
-            interval = setInterval(() => {
-                setElapsedTime(prevTime => prevTime + 1);
-            }, 1000);
-        } else {
-            clearInterval(interval);
-        }
-        return () => clearInterval(interval);
-    }, [isRecording, isTakingBreak]);
+        if (!isRecording) return;
 
-    // 2. Break timer (breakTime)
-    useEffect(() => {
-        let interval = null;
-        if (isTakingBreak) {
-            interval = setInterval(() => {
-                setBreakTime(prevTime => prevTime + 1);
-            }, 1000);
-        } else {
-            clearInterval(interval);
-        }
-        return () => clearInterval(interval);
-    }, [isTakingBreak]);
+        const interval = setInterval(() => {
+            if (isTakingBreak) {
+                setBreakTime(prev => prev + 1);
+            } else {
+                setElapsedTime(prev => prev + 1);
+            }
 
-    // 3. Time since last break timer (timeSinceLastBreak)
-    useEffect(() => {
-        let interval = null;
-        // Update only while recording; this freezes the "Last Break" display after stop
-        if (lastBreakEndTime > 0 && isRecording) {
-            const update = () => {
-                setTimeSinceLastBreak(Math.floor((Date.now() - lastBreakEndTime) / 1000));
-            };
-            update();
-            interval = setInterval(update, 1000);
-        } else {
-            setTimeSinceLastBreak(prev => prev || 0);
-        }
-        return () => clearInterval(interval);
-    }, [lastBreakEndTime, isRecording]);
+            if (lastBreakEndTime > 0) {
+                const secondsSince = Math.floor((Date.now() - lastBreakEndTime) / 1000);
+                setTimeSinceLastBreak(secondsSince > 0 ? secondsSince : 0);
+            }
+        }, 1000);
 
-    // reset all timers/lists related to the current driving session
+        return () => clearInterval(interval);
+    }, [isRecording, isTakingBreak, lastBreakEndTime]);
+
     const resetTimers = () => {
         setIsRecording(false);
         setIsTakingBreak(false);
         setElapsedTime(0);
         setBreakTime(0);
-        currentBreakStartRef.current = null;
         setBreaksList([]);
-        // do not reset startTime or lastBreakEndTime to allow "Current Status" to remain frozen
-        setTimeSinceLastBreak(prev => prev || 0);
+        currentBreakStartRef.current = null;
     };
 
     return {
         isRecording, setIsRecording,
-        elapsedTime, setElapsedTime,
         isTakingBreak, setIsTakingBreak,
-        startTime, setStartTime,
+        elapsedTime, setElapsedTime,
         breakTime, setBreakTime,
-        lastBreakEndTime, setLastBreakEndTime,
         timeSinceLastBreak, setTimeSinceLastBreak,
-        currentBreakStartRef,
+        startTime, setStartTime,
+        lastBreakEndTime, setLastBreakEndTime,
         breaksList, setBreaksList,
+        currentBreakStartRef,
         resetTimers,
     };
 };
