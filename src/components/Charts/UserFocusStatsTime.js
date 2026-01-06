@@ -11,10 +11,19 @@ const CARD_STYLE = {
     boxShadow: '0 6px 18px rgba(0,0,0,0.5)'
 };
 
-export default function UserFocusStatsTime() {
+export default function UserFocusStatsTime({ selectedDay }) {
     const { dataset, loading } = useStatsData();
 
-    const stats = useMemo(() => calculateStats(dataset), [dataset]);
+    const stats = useMemo(() => {
+        const filteredData = selectedDay
+            ? dataset.filter(d => {
+                const dayKey = d.timestamp.toLocaleDateString('sv-SE');
+                return dayKey === selectedDay;
+            })
+            : dataset;
+
+        return calculateStats(filteredData);
+    }, [dataset, selectedDay]);
 
     if (loading) {
         return (
