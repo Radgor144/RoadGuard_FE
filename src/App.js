@@ -39,7 +39,7 @@ function TopRightAuth() {
 function AppContent() {
     return (
         <>
-            <header>Welcome in Road Guard!</header>
+            <header>Welcome to Road Guard!</header>
 
             <nav aria-label="Main menu">
                 <ul>
