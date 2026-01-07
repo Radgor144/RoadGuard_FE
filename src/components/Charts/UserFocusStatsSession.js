@@ -12,9 +12,16 @@ const CARD_STYLE = {
 };
 
 export default function UserFocusStatsSession() {
-    const { dataset, loading } = useStatsData();
+    const { dataset, loading, startTime, endTime } = useStatsData();
 
     const stats = useMemo(() => calculateStats(dataset), [dataset]);
+
+    const sessionDurationMinutes = useMemo(() => {
+        if (!startTime || !endTime) return 0;
+        const start = new Date(startTime).getTime();
+        const end = new Date(endTime).getTime();
+        return Math.round((end - start) / 60000);
+    }, [startTime, endTime]);
 
     if (loading) {
         return (
@@ -45,7 +52,12 @@ export default function UserFocusStatsSession() {
             <StatCard title="Average focus" value={`${stats.avg.toFixed(1)}%`} />
             <StatCard title="Minimum focus" value={`${stats.min.toFixed(1)}%`} />
             <StatCard title="High focus driving" value={`${stats.highFocusPercentage.toFixed(1)}%`} />
-            <StatCard title="Total driving time" value={formatMinutesToHMM(stats.totalMinutes)} variant="h4" />
+
+            <StatCard
+                title="Total driving time"
+                value={formatMinutesToHMM(sessionDurationMinutes)}
+                variant="h4"
+            />
         </Box>
     );
 }

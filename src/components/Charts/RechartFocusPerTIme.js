@@ -104,7 +104,7 @@ export default function RechartFocusPerTimeChart() {
         <Box sx={{ width: '100%', height: isCompactChart ? 320 : 420, bgcolor: '#1f2937', borderRadius: 2, p: 5 }}>
             <Typography sx={{ color: '#fff', mb: 1 }} fontWeight={700}>Focus per Time</Typography>
             <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }} isAnimationActive={false}>
+                <AreaChart data={chartData} margin={{ top: 0, right: 30, left: 0, bottom: 0 }} isAnimationActive={false}>
                     <defs>
                         <linearGradient id="colorFocus" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
