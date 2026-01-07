@@ -12,13 +12,23 @@ const formatSessionLabel = (session) => {
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) return "Invalid date format";
 
-    const durationMin = Math.round((end.getTime() - start.getTime()) / 60000);
+    const diffMs = end.getTime() - start.getTime();
+    const totalMinutes = Math.round(diffMs / 60000);
+
+    let durationStr;
+    if (totalMinutes < 60) {
+        durationStr = `${totalMinutes} min`;
+    } else {
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        durationStr = m > 0 ? `${h} h ${m} min` : `${h} h`;
+    }
 
     const dateStr = DATE_FORMATTER.format(start);
     const timeStart = start.toLocaleTimeString('pl-PL', TIME_OPTIONS);
     const timeEnd = end.toLocaleTimeString('pl-PL', TIME_OPTIONS);
 
-    return `${dateStr} | ${timeStart} - ${timeEnd} (${durationMin} min)`;
+    return `${dateStr} | ${timeStart} - ${timeEnd} (${durationStr})`;
 };
 
 const SELECT_SX = {
@@ -122,10 +132,8 @@ export default function SessionSelector({ onRangeChange, selectedSessionId }) {
                     onChange={handleChange}
                     sx={SELECT_SX}
                     MenuProps={MENU_PROPS}
+                    variant="outlined"
                 >
-                    <MenuItem value="ALL">
-                        <em>Today (Show All)</em>
-                    </MenuItem>
 
                     {menuItems}
                 </Select>

@@ -7,25 +7,22 @@ export const useStatsData = () => {
     return useContext(StatsContext);
 };
 
-export const StatsProvider = ({ children, startTime, endTime }) => {
-    const [data, setData] = useState([]);
+export const StatsProvider = ({ children, startTime, endTime, fetchSessions = true }) => {
+    const [dataset, setDataset] = useState([]);
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         if (!startTime || !endTime) {
-            setData([]);
-            setLoading(false);
+            setDataset([]);
             return;
         }
 
         let isMounted = true;
+        setLoading(true);
 
-        const fetchData = async () => {
-            setLoading(true);
-            setError(null);
-
+        const fetchEarData = async () => {
             const requestData = {
                 startTime: normalizeDate(startTime),
                 endTime: normalizeDate(endTime)
@@ -38,54 +35,79 @@ export const StatsProvider = ({ children, startTime, endTime }) => {
             };
 
             try {
-                const [earRes, sessionsRes] = await Promise.all([
-                    fetch(`http://localhost:8082/api/dashboard/ear-data`, {
-                        method: 'POST',
-                        headers,
-                        body: JSON.stringify(requestData)
-                    }),
-                    fetch(`http://localhost:8082/api/dashboard/driving-sessions`, {
-                        method: 'GET',
-                        headers
-                    })
-                ]);
+                const res = await fetch(`http://localhost:8082/api/dashboard/ear-data`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(requestData)
+                });
 
-                if (!earRes.ok || !sessionsRes.ok) {
-                    if (isMounted) setError(`HTTP Error: ${earRes.status} / ${sessionsRes.status}`);
+                if (!res.ok) {
+                    const errorMsg = `EAR HTTP Error: ${res.status}`;
+                    console.error(errorMsg);
+                    if (isMounted) setError(prev => prev || errorMsg);
                     return;
                 }
 
-                const earDataJson = await earRes.json();
-                const sessionsJson = await sessionsRes.json();
-
+                const json = await res.json();
                 if (isMounted) {
-                    const cleanChartData = processEarData(earDataJson.activeDriveData);
-                    const cleanSessions = processSessions(sessionsJson);
-
-                    setData(cleanChartData);
-                    setSessions(cleanSessions);
+                    setDataset(processEarData(json.activeDriveData));
                 }
             } catch (err) {
                 console.error(err);
-                if (isMounted) {
-                    setError(err.message);
-                    setData([]);
-                    setSessions([]);
-                }
+                if (isMounted) setError(prev => prev || err.message);
             } finally {
                 if (isMounted) setLoading(false);
             }
         };
 
-        fetchData();
+        fetchEarData();
 
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [startTime, endTime]);
 
+
+    useEffect(() => {
+        if (!fetchSessions) return;
+
+        let isMounted = true;
+
+        const fetchSessionsList = async () => {
+            const rg_token = localStorage.getItem('rg_token');
+            const headers = {
+                'Content-Type': 'application/json',
+                ...(rg_token ? { Authorization: `Bearer ${rg_token}` } : {})
+            };
+
+            try {
+                const res = await fetch(`http://localhost:8082/api/dashboard/driving-sessions`, {
+                    method: 'GET',
+                    headers
+                });
+
+                if (!res.ok) {
+                    const errorMsg = `Sessions HTTP Error: ${res.status}`;
+                    console.error(errorMsg);
+                    if (isMounted) setError(prev => prev || errorMsg);
+                    return;
+                }
+
+                const json = await res.json();
+                if (isMounted) {
+                    setSessions(processSessions(json));
+                }
+            } catch (err) {
+                console.error(err);
+                if (isMounted) setError(prev => prev || err.message);
+            }
+        };
+
+        fetchSessionsList();
+
+        return () => { isMounted = false; };
+    }, [fetchSessions]);
+
     const value = {
-        dataset: data,
+        dataset,
         sessions,
         loading,
         error,
