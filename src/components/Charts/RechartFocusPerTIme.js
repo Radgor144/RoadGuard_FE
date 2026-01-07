@@ -1,65 +1,68 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { Box, Typography, useMediaQuery } from '@mui/material';
 import { useStatsData } from './StatsContext';
 import {
-    ResponsiveContainer,
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ReferenceArea,
-    Legend
+    ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea, Legend
 } from 'recharts';
 import { format } from 'date-fns';
 
-export default function RechartFocusPerTimeChart() {
-    const { dataset, breaks, loading, error, startTime, endTime } = useStatsData();
+const GAP_THRESHOLD_MS = 2 * 60 * 1000;
+
+export default function RechartFocusPerTime() {
+    const { dataset, loading, error, startTime, endTime } = useStatsData();
     const isCompactChart = useMediaQuery('(max-width:750px)');
 
-    const chartData = useMemo(() => {
-        if (!dataset) return [];
-        const dataWithBreaks = [...dataset];
+    const { chartData, breakAreas } = useMemo(() => {
+        if (!dataset || dataset.length === 0) return { chartData: [], breakAreas: [] };
 
-        breaks?.forEach(b => {
-            dataWithBreaks.push({ timestamp: new Date(b.startTime).getTime(), focus: null });
-            dataWithBreaks.push({ timestamp: new Date(b.endTime).getTime(), focus: null });
-        });
+        const sortedData = dataset.map(d => ({
+            timestamp: d.timestamp.getTime(),
+            focus: d.focusPercentage
+        })).sort((a, b) => a.timestamp - b.timestamp);
 
-        return dataWithBreaks
-            .map(d => ({
-                timestamp: d.timestamp instanceof Date ? d.timestamp.getTime() : new Date(d.timestamp).getTime(),
-                focus: d.focusPercentage ?? d.focus ?? null
-            }))
-            .sort((a, b) => a.timestamp - b.timestamp);
-    }, [dataset, breaks]);
+        const processedData = [];
+        const detectedBreaks = [];
+
+        for (let i = 0; i < sortedData.length; i++) {
+            const current = sortedData[i];
+
+            processedData.push(current);
+
+            if (i < sortedData.length - 1) {
+                const next = sortedData[i + 1];
+                const diff = next.timestamp - current.timestamp;
+
+                if (diff > GAP_THRESHOLD_MS) {
+                    detectedBreaks.push({
+                        id: `gap-${i}`,
+                        x1: current.timestamp,
+                        x2: next.timestamp,
+                        duration: Math.round(diff / 60000)
+                    });
+
+                    processedData.push({
+                        timestamp: current.timestamp + 1,
+                        focus: null
+                    });
+                }
+            }
+        }
+
+        return { chartData: processedData, breakAreas: detectedBreaks };
+    }, [dataset]);
 
     const computedDomain = useMemo(() => {
         if (!chartData || chartData.length === 0) {
             return [new Date(startTime).getTime(), new Date(endTime).getTime()];
         }
-
         const timestamps = chartData.map(d => d.timestamp);
         const minDataTime = Math.min(...timestamps);
         const maxDataTime = Math.max(...timestamps);
         const duration = maxDataTime - minDataTime;
         const buffer = duration < 3600000 ? 15 * 60 * 1000 : duration * 0.05;
 
-        return [
-            minDataTime - buffer,
-            maxDataTime + buffer
-        ];
+        return [minDataTime - buffer, maxDataTime + buffer];
     }, [chartData, startTime, endTime]);
-
-    const breakAreas = useMemo(() => {
-        return breaks?.map((b, i) => ({
-            id: `break-${i}`,
-            x1: new Date(b.startTime).getTime(),
-            x2: new Date(b.endTime).getTime(),
-            duration: b.durationMinutes
-        })) || [];
-    }, [breaks]);
 
     const ticks = useMemo(() => {
         const [start, end] = computedDomain;
@@ -69,18 +72,13 @@ export default function RechartFocusPerTimeChart() {
         return result;
     }, [computedDomain]);
 
-    const formatXAxis = useCallback((tickItem) => {
+    const formatXAxis = (tickItem) => {
         const [start, end] = computedDomain;
         const duration = end - start;
-        const oneDay = 24 * 60 * 60 * 1000;
-        const fiveDays = 5 * oneDay;
-
-        if (duration <= fiveDays) {
-            return format(new Date(tickItem), 'dd.MM HH:mm');
-        } else {
-            return format(new Date(tickItem), 'dd.MM');
-        }
-    }, [computedDomain]);
+        return duration <= (5 * 24 * 3600 * 1000)
+            ? format(new Date(tickItem), 'dd.MM HH:mm')
+            : format(new Date(tickItem), 'dd.MM');
+    };
 
     const CustomTooltip = ({ active, payload, label }) => {
         if (!active || !payload?.length || payload[0].value == null) return null;
@@ -100,13 +98,19 @@ export default function RechartFocusPerTimeChart() {
     if (error) return <Typography sx={{ color: '#fff' }}>Error: {error}</Typography>;
     if (!dataset || dataset.length === 0) return <Typography sx={{ color: '#fff' }}>No data available</Typography>;
 
+    const gradientId = "colorFocusSession";
+
     return (
-        <Box sx={{ width: '100%', height: isCompactChart ? 320 : 420, bgcolor: '#1f2937', borderRadius: 2, p: 5 }}>
+        <Box sx={{ width: '100%', height: isCompactChart ? 320 : 420, bgcolor: '#1f2937', borderRadius: 2, p: 2 }}>
             <Typography sx={{ color: '#fff', mb: 1 }} fontWeight={700}>Focus per Time</Typography>
             <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 0, right: 30, left: 0, bottom: 0 }} isAnimationActive={false}>
+                <AreaChart
+                    data={chartData}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 20 }}
+                    isAnimationActive={false}
+                >
                     <defs>
-                        <linearGradient id="colorFocus" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
                             <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
                         </linearGradient>
@@ -129,7 +133,8 @@ export default function RechartFocusPerTimeChart() {
                     />
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.2)" />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
+
+                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
 
                     {breakAreas.map(b => (
                         <ReferenceArea
@@ -137,9 +142,14 @@ export default function RechartFocusPerTimeChart() {
                             x1={b.x1}
                             x2={b.x2}
                             fill="#82ca9d"
-                            fillOpacity={0.5}
+                            fillOpacity={0.3}
                             ifOverflow="extendDomain"
-                            label={{ position: 'insideTop', value: `Break ${b.duration}m`, fill: '#fff', fontSize: 12 }}
+                            label={{
+                                position: 'insideTop',
+                                value: `Break ~${b.duration}m`,
+                                fill: '#fff',
+                                fontSize: 12
+                            }}
                         />
                     ))}
 
@@ -147,7 +157,8 @@ export default function RechartFocusPerTimeChart() {
                         type="monotone"
                         dataKey="focus"
                         stroke="#8884d8"
-                        fill="url(#colorFocus)"
+                        strokeWidth={2}
+                        fill={`url(#${gradientId})`}
                         name="Focus"
                         connectNulls={false}
                         isAnimationActive={false}

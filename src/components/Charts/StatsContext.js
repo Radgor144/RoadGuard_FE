@@ -9,13 +9,16 @@ export const useStatsData = () => {
 
 export const StatsProvider = ({ children, startTime, endTime, fetchSessions = true }) => {
     const [dataset, setDataset] = useState([]);
+    const [breaks, setBreaks] = useState([]); // Stan dla przerw
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
+    // EFEKT 1: Pobieranie danych EAR i PRZERW
     useEffect(() => {
         if (!startTime || !endTime) {
             setDataset([]);
+            setBreaks([]);
             return;
         }
 
@@ -49,8 +52,12 @@ export const StatsProvider = ({ children, startTime, endTime, fetchSessions = tr
                 }
 
                 const json = await res.json();
+
                 if (isMounted) {
+                    // 1. Zapisujemy czyste dane (Helper tylko mapuje daty)
                     setDataset(processEarData(json.activeDriveData));
+                    // 2. KLUCZOWE: Zapisujemy przerwy z API
+                    setBreaks(json.breaks || []);
                 }
             } catch (err) {
                 console.error(err);
@@ -65,7 +72,7 @@ export const StatsProvider = ({ children, startTime, endTime, fetchSessions = tr
         return () => { isMounted = false; };
     }, [startTime, endTime]);
 
-
+    // EFEKT 2: Pobieranie Sesji
     useEffect(() => {
         if (!fetchSessions) return;
 
@@ -108,6 +115,7 @@ export const StatsProvider = ({ children, startTime, endTime, fetchSessions = tr
 
     const value = {
         dataset,
+        breaks, // Udostępniamy przerwy dla wykresu
         sessions,
         loading,
         error,
