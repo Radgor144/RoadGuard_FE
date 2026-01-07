@@ -52,12 +52,7 @@ export default function UserFocusStatsSession() {
             <StatCard title="Average focus" value={`${stats.avg.toFixed(1)}%`} />
             <StatCard title="Minimum focus" value={`${stats.min.toFixed(1)}%`} />
             <StatCard title="High focus driving" value={`${stats.highFocusPercentage.toFixed(1)}%`} />
-
-            <StatCard
-                title="Total driving time"
-                value={formatMinutesToHMM(sessionDurationMinutes)}
-                variant="h4"
-            />
+            <StatCard title="Total driving time" value={formatMinutesToHMM(sessionDurationMinutes)}/>
         </Box>
     );
 }
