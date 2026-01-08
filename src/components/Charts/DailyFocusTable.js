@@ -1,22 +1,13 @@
 import React, { useMemo } from 'react';
-import {
-    Box,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Typography,
-    Paper
-} from '@mui/material';
+import { Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography, Paper } from '@mui/material';
 import { useStatsData } from './StatsContext';
 
 const HEADER_CELL = {
     color: '#fff',
     fontWeight: 700,
     borderBottom: '1px solid rgba(255,255,255,0.2)',
-    textAlign: 'center'
+    textAlign: 'center',
+    backgroundColor: '#1f2937'
 };
 
 const BODY_CELL = {
@@ -45,7 +36,6 @@ export default function DailyFocusTable({ onDaySelect, selectedDay }) {
             if (!daysMap.has(dayKey)) {
                 daysMap.set(dayKey, {
                     dayKey,
-                    day: new Date(dayKey),
                     sessions: 0
                 });
             }
@@ -73,13 +63,22 @@ export default function DailyFocusTable({ onDaySelect, selectedDay }) {
 
     return (
         <Box sx={{ bgcolor: '#1f2937', borderRadius: 2, mt: 3 }}>
-            <TableContainer component={Paper} sx={{ bgcolor: 'transparent' }}>
-                <Table>
+            <TableContainer
+                component={Paper}
+                sx={{
+                    bgcolor: 'transparent',
+                    maxHeight: 52 * 4 + 56, // 4 wiersze + nagłówek
+                    overflowY: 'auto'
+                }}
+            >
+                <Table stickyHeader>
                     <TableHead>
                         <TableRow>
                             <TableCell sx={{ ...HEADER_CELL, width: '10%' }}>#</TableCell>
                             <TableCell sx={{ ...HEADER_CELL, width: '45%' }}>Day</TableCell>
-                            <TableCell sx={{ ...HEADER_CELL, width: '45%' }}>Amount of sessions</TableCell>
+                            <TableCell sx={{ ...HEADER_CELL, width: '45%' }}>
+                                Amount of sessions
+                            </TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -99,9 +98,9 @@ export default function DailyFocusTable({ onDaySelect, selectedDay }) {
                                 }}
                                 onClick={() => onDaySelect(row.dayKey)}
                             >
-                                <TableCell sx={BODY_CELL} align="center">{row.index}</TableCell>
-                                <TableCell sx={BODY_CELL} align="center">{row.dayLabel}</TableCell>
-                                <TableCell sx={BODY_CELL} align="center">{row.sessions}</TableCell>
+                                <TableCell sx={BODY_CELL}>{row.index}</TableCell>
+                                <TableCell sx={BODY_CELL}>{row.dayLabel}</TableCell>
+                                <TableCell sx={BODY_CELL}>{row.sessions}</TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
