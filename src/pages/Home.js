@@ -6,13 +6,21 @@ export default function Home() {
         <div className="w-full flex justify-center mt-10 px-4">
             <div className="bg-gray-800 p-10 rounded-xl shadow-lg w-full max-w-xl text-white text-center">
                 <h1 className="text-3xl font-bold mb-4">Welcome to Road Guard</h1>
+
+                <div className="mt-12 flex justify-center">
+                    <img
+                        src="/images/app_logo.png"
+                        alt="Road Guard logo"
+                        className="h-80"
+                    />
+                </div>
+
                 <p className="text-gray-300 mb-8">
                     Monitor your rides, track statistics and stay safe using our intelligent system.
                     Create an account or log in to begin.
                 </p>
 
                 <div className="flex flex-col gap-4 mt-6">
-                    {/* About app – zielony */}
                     <NavLink
                         to="/about"
                         className="bg-[#1B885E] hover:bg-[#15704c] transition px-6 py-3 rounded-lg font-semibold"
@@ -20,7 +28,6 @@ export default function Home() {
                         About app
                     </NavLink>
 
-                    {/* Sign in – #FD9200 + biała czcionka */}
                     <NavLink
                         to="/login"
                         className="bg-[#FD9200] hover:bg-[#e68500] transition px-6 py-3 rounded-lg font-semibold text-white"
@@ -35,6 +42,8 @@ export default function Home() {
                         Sign up
                     </NavLink>
                 </div>
+
+
             </div>
         </div>
     );

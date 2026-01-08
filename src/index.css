@@ -272,6 +272,33 @@ main
     line-height: 1.6;
 }
 
+.app-logo {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 100;
+}
+
+.app-logo img {
+    max-width: 60px;
+    height: auto;
+    transform: scale(3);
+    transform-origin: top left;
+    opacity: 0.9;
+}
+
+@media (max-width: 900px) {
+    .app-logo img {
+        transform: scale(2);
+    }
+}
+
+@media (max-width: 600px) {
+    .app-logo img {
+        transform: scale(1);
+    }
+}
+
 
 @media (max-width: 900px) {
     .about-container {

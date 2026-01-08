@@ -1,11 +1,26 @@
 import './App.css';
 import React from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
+import {
+    BrowserRouter,
+    Routes,
+    Route,
+    NavLink,
+    Navigate,
+    useLocation
+} from "react-router-dom";
+
 import About from "./pages/About";
 import Stats from "./pages/Stats";
 import Home from "./pages/Home";
 import LiveFeed from "./components/LiveFeed";
-import { Login, Register, AuthProvider, useAuth, RequireAuth } from './features/auth';
+import {
+    Login,
+    Register,
+    AuthProvider,
+    useAuth,
+    RequireAuth
+} from './features/auth';
+
 import { RecordingProvider } from "./components/SessionRecording/SessionRecording";
 import AlertsPopup from "./components/Alerts/AlertsPopup";
 
@@ -13,15 +28,25 @@ function TopRightAuth() {
     const auth = useAuth();
     const location = useLocation();
 
-    if (location.pathname === "/" || location.pathname === "/login" || location.pathname === "/register") {
+    if (
+        location.pathname === "/" ||
+        location.pathname === "/login" ||
+        location.pathname === "/register"
+    ) {
         return null;
     }
 
     if (auth.user) {
         return (
             <div className="top-right-auth">
-                <span style={{ color: 'white', marginRight: 8 }}>{auth.user.email}</span>
-                <button className="auth-link" id="logout_button" onClick={() => auth.logout()}>
+                <span style={{ color: 'white', marginRight: 8 }}>
+                    {auth.user.email}
+                </span>
+                <button
+                    className="auth-link"
+                    id="logout_button"
+                    onClick={() => auth.logout()}
+                >
                     Logout
                 </button>
             </div>
@@ -70,9 +95,30 @@ function AppContent() {
 
 function InnerApp() {
     const auth = useAuth();
+    const location = useLocation();
+
+    const showLogo = ["/about", "/roadguard", "/stats"].includes(location.pathname);
 
     return (
-        <div className="App" style={{ backgroundColor: '#0e1319', paddingTop: '20px' }}>
+        <div
+            className="App"
+            style={{
+                backgroundColor: '#0e1319',
+                paddingTop: '20px',
+                position: 'relative'
+            }}
+        >
+            {/* LOGO – LEWY GÓRNY RÓG */}
+            {showLogo && (
+                <div className="app-logo">
+                    <img
+                        src="/images/app_logo.png"
+                        alt="Road Guard logo"
+                    />
+                </div>
+            )}
+
+            {/* AUTH – PRAWY GÓRNY RÓG */}
             <TopRightAuth />
 
             {auth.user ? (
