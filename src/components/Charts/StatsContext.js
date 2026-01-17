@@ -9,7 +9,7 @@ export const useStatsData = () => {
 
 export const StatsProvider = ({ children, startTime, endTime, fetchSessions = true }) => {
     const [dataset, setDataset] = useState([]);
-    const [breaks, setBreaks] = useState([]); // Stan dla przerw
+    const [breaks, setBreaks] = useState([]);
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -115,7 +115,7 @@ export const StatsProvider = ({ children, startTime, endTime, fetchSessions = tr
 
     const value = {
         dataset,
-        breaks, // Udostępniamy przerwy dla wykresu
+        breaks,
         sessions,
         loading,
         error,

@@ -1,4 +1,3 @@
-// javascript
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FaceMesh } from '@mediapipe/face_mesh';
 import { Camera } from '@mediapipe/camera_utils';
